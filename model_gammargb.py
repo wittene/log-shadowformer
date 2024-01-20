@@ -4,14 +4,7 @@ import torch.utils.checkpoint as checkpoint
 from timm.models.layers import DropPath, to_2tuple, trunc_normal_
 import torch.nn.functional as F
 from einops import rearrange, repeat
-from einops.layers.torch import Rearrange
 import math
-import numpy as np
-import time
-from torch import einsum
-import cv2
-import scipy.misc
-import utils
 
 MAX_LOG_VAL = 11.0903
 #########################################

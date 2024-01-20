@@ -4,21 +4,24 @@ import torch.utils.checkpoint as checkpoint
 from timm.models.layers import DropPath, to_2tuple, trunc_normal_
 import torch.nn.functional as F
 from einops import rearrange, repeat
-from einops.layers.torch import Rearrange
 import math
-import numpy as np
-import time
-from torch import einsum
-import cv2
-import scipy.misc
-import utils
-#########################################
+
+###########################################################################
+# CONSTANTS
+
+MAX_LOG_VAL = 11.0903
+
+
+
+###########################################################################
+# UNET
+
 class ConvBlock(nn.Module):
     def __init__(self, in_channel, out_channel, strides=1):
         super(ConvBlock, self).__init__()
         self.strides = strides
-        self.in_channel=in_channel
-        self.out_channel=out_channel
+        self.in_channel = in_channel
+        self.out_channel = out_channel
         self.block = nn.Sequential(
             nn.Conv2d(in_channel, out_channel, kernel_size=3, stride=strides, padding=1),
             nn.LeakyReLU(inplace=True),
@@ -131,7 +134,11 @@ class UNet(nn.Module):
         flops += H*W*self.dim*3*3*3
         return flops
 
-#########################################
+
+
+###########################################################################
+# 
+
 class PosCNN(nn.Module):
     def __init__(self, in_chans, embed_dim=768, s=1):
         super(PosCNN, self).__init__()
@@ -163,6 +170,9 @@ class SELayer(nn.Module):
             nn.ReLU(inplace=True),
             nn.Linear(channel // reduction, channel, bias=False),
             nn.Sigmoid()
+            # H-Edit {
+            # nn.ReLU()
+            # } H-Edit
         )
 
     def forward(self, x):  # x: [B, N, C]
@@ -209,8 +219,11 @@ class SepConv2d(torch.nn.Module):
         flops += H*W*self.in_channels*self.out_channels
         return flops
 
-##########################################################################
-## Channel Attention Layer
+
+
+###########################################################################
+# CHANNEL ATTENTION LAYER
+
 class CALayer(nn.Module):
     def __init__(self, channel, reduction=16, bias=False):
         super(CALayer, self).__init__()
@@ -222,6 +235,9 @@ class CALayer(nn.Module):
                 nn.ReLU(inplace=True),
                 nn.Conv2d(channel // reduction, channel, 1, padding=0, bias=bias),
                 nn.Sigmoid()
+                # H-Edit {
+                # nn.ReLU()
+                # } H-Edit
         )
 
     def forward(self, x):
@@ -229,13 +245,16 @@ class CALayer(nn.Module):
         y = self.conv_du(y)
         return x * y
 
+
+
+###########################################################################
+## CHANNEL ATTENTION BLOCK (CAB)
+
 def conv(in_channels, out_channels, kernel_size, bias=False, stride = 1):
     return nn.Conv2d(
         in_channels, out_channels, kernel_size,
         padding=(kernel_size//2), bias=bias, stride = stride)
 
-##########################################################################
-## Channel Attention Block (CAB)
 class CAB(nn.Module):
     def __init__(self, n_feat, kernel_size, reduction, bias, act):
         super(CAB, self).__init__()
@@ -253,8 +272,11 @@ class CAB(nn.Module):
         res += x
         return res
 
-#########################################
-######## Embedding for q,k,v ########
+
+
+###########################################################################
+# Embedding for q,k,v
+
 class ConvProjection(nn.Module):
     def __init__(self, dim, heads = 8, dim_head = 64, kernel_size=3, q_stride=1, k_stride=1, v_stride=1, dropout = 0.,
                  last_stage=False,bias=True):
@@ -341,9 +363,11 @@ class LinearProjection_Concat_kv(nn.Module):
         flops = H*W*self.dim*self.inner_dim*5
         return flops 
 
-#########################################
 
-########### SIA #############
+
+###########################################################################
+# SIA
+
 class WindowAttention(nn.Module):
     def __init__(self, dim, win_size, num_heads, token_projection='linear', qkv_bias=True, qk_scale=None, attn_drop=0.,
                  proj_drop=0., se_layer=False):
@@ -394,11 +418,20 @@ class WindowAttention(nn.Module):
         B_, N, C = x.shape
         # x = self.se_layer(x)
         one = torch.ones_like(xm)
+        # H-Edit {
+        # one = torch.full(xm.size(), MAX_LOG_VAL).cuda()
+        # } H-Edit
         zero = torch.zeros_like(xm)
         xm = torch.where(xm < 0.1, one, one*2)
         mm = xm @ xm.transpose(-2, -1)
         one = torch.ones_like(mm)
-        mm = torch.where(mm==2, one, one*0.2)
+        # H-Edit {
+        # one = torch.full(mm.size(), MAX_LOG_VAL).cuda()
+        # } H-Edit
+        mm = torch.where(mm==2, one, one*0.2)        
+        # H-Edit {
+        # mm = torch.where(mm==2 * MAX_LOG_VAL, one, one*0.2)
+        # } H-Edit
         mm = torch.unsqueeze(mm, dim=1)
         q, k, v = self.qkv(x, attn_kv)
         q = q * self.scale
@@ -456,8 +489,10 @@ class WindowAttention(nn.Module):
         return flops
 
 
-#########################################
-########### feed-forward network #############
+
+###########################################################################
+# FEED-FORWARD NETWORK
+
 class Mlp(nn.Module):
     def __init__(self, in_features, hidden_features=None, out_features=None, act_layer=nn.GELU, drop=0.):
         super().__init__()
@@ -532,8 +567,11 @@ class LeFF(nn.Module):
         print("LeFF:{%.2f}"%(flops/1e9))
         return flops
 
-#########################################
-########### window operation#############
+
+
+###########################################################################
+# WINDOW OPERATION
+
 def window_partition(x, win_size, dilation_rate=1):
     B, H, W, C = x.shape
     if dilation_rate !=1:
@@ -558,8 +596,11 @@ def window_reverse(windows, win_size, H, W, dilation_rate=1):
         x = x.permute(0, 1, 3, 2, 4, 5).contiguous().view(B, H, W, -1)
     return x
 
-#########################################
-# Downsample Block
+
+
+###########################################################################
+# DOWNSAMPLE BLOCK
+
 class Downsample(nn.Module):
     def __init__(self, in_channel, out_channel):
         super(Downsample, self).__init__()
@@ -584,7 +625,8 @@ class Downsample(nn.Module):
         print("Downsample:{%.2f}"%(flops/1e9))
         return flops
 
-# Upsample Block
+# UPSAMPLE BLOCK
+
 class Upsample(nn.Module):
     def __init__(self, in_channel, out_channel):
         super(Upsample, self).__init__()
@@ -609,7 +651,8 @@ class Upsample(nn.Module):
         print("Upsample:{%.2f}"%(flops/1e9))
         return flops
 
-# Input Projection
+# INPUT PROJECTION
+
 class InputProj(nn.Module):
     def __init__(self, in_channel=3, out_channel=64, kernel_size=3, stride=1, norm_layer=None,act_layer=nn.LeakyReLU):
         super().__init__()
@@ -641,7 +684,8 @@ class InputProj(nn.Module):
         print("Input_proj:{%.2f}"%(flops/1e9))
         return flops
 
-# Output Projection
+# OUTPUT PROJECTION
+
 class OutputProj(nn.Module):
     def __init__(self, in_channel=64, out_channel=3, kernel_size=3, stride=1, norm_layer=None,act_layer=None):
         super().__init__()
@@ -680,8 +724,10 @@ class OutputProj(nn.Module):
         return flops
 
 
-#########################################
-########### CA Transformer #############
+
+###########################################################################
+# CA TRANSFORMER
+
 class CATransformerBlock(nn.Module):
     def __init__(self, dim, input_resolution, num_heads, win_size=10, shift_size=0,
                  mlp_ratio=4., qkv_bias=True, qk_scale=None, drop=0., attn_drop=0., drop_path=0.,
@@ -699,10 +745,19 @@ class CATransformerBlock(nn.Module):
             self.shift_size = 0
             self.win_size = min(self.input_resolution)
         assert 0 <= self.shift_size < self.win_size, "shift_size must in 0-win_size"
-
-        self.norm1 = norm_layer(dim)
+        # H-Edit {
+        if norm_layer is not None:
+            self.norm1 = norm_layer(dim)
+        else:
+            self.norm1 = None
+        # } H-Edit
         self.drop_path = DropPath(drop_path) if drop_path > 0. else nn.Identity()
-        self.norm2 = norm_layer(dim)
+        # H-Edit {
+        if norm_layer is not None:
+            self.norm2 = norm_layer(dim)
+        else:
+            self.norm2 = None
+        # } H-Edit
         mlp_hidden_dim = int(dim * mlp_ratio)
         self.mlp = Mlp(in_features=dim, hidden_features=mlp_hidden_dim, act_layer=act_layer,
                        drop=drop) if token_mlp == 'ffn' else LeFF(dim, mlp_hidden_dim, act_layer=act_layer, drop=drop)
@@ -721,7 +776,10 @@ class CATransformerBlock(nn.Module):
             f"Input image size ({H}*{W} doesn't match model ({L})."
 
         shortcut = x
-        x = self.norm1(x)
+        # H-Edit {
+        if self.norm1 is not None:
+            x = self.norm1(x)
+        # } H-Edit
 
         # spatial restore
         x = rearrange(x, ' b (h w) (c) -> b c h w ', h=H, w=W)
@@ -735,7 +793,11 @@ class CATransformerBlock(nn.Module):
 
         # FFN
         x = shortcut + self.drop_path(x)
-        x = x + self.drop_path(self.mlp(self.norm2(x), img_size=img_size))
+        # H-Edit {
+        # x = x + self.drop_path(self.mlp(x, img_size=img_size))
+        if self.norm2 is not None:
+            x = x + self.drop_path(self.mlp(self.norm2(x), img_size=img_size))
+        # } H-Edit
         
         return x
 
@@ -753,8 +815,11 @@ class CATransformerBlock(nn.Module):
         print("LeWin:{%.2f}" % (flops / 1e9))
         return flops
 
-#########################################
-########### SIM Transformer #############
+
+
+###########################################################################
+# SIM TRANSFORMER
+
 class SIMTransformerBlock(nn.Module):
     def __init__(self, dim, input_resolution, num_heads, win_size=10, shift_size=0,
                  mlp_ratio=4., qkv_bias=True, qk_scale=None, drop=0., attn_drop=0., drop_path=0.,
@@ -772,14 +837,24 @@ class SIMTransformerBlock(nn.Module):
             self.win_size = min(self.input_resolution)
         assert 0 <= self.shift_size < self.win_size, "shift_size must in 0-win_size"
 
-        self.norm1 = norm_layer(dim)
+        # H-Edit {
+        if norm_layer is None:
+            self.norm1 = None
+        else:
+            self.norm1 = norm_layer(dim)
+        # } H-Edit
         self.attn = WindowAttention(
             dim, win_size=to_2tuple(self.win_size), num_heads=num_heads,
             qkv_bias=qkv_bias, qk_scale=qk_scale, attn_drop=attn_drop, proj_drop=drop,
             token_projection=token_projection,se_layer=se_layer)
 
         self.drop_path = DropPath(drop_path) if drop_path > 0. else nn.Identity()
-        self.norm2 = norm_layer(dim)
+        # H-Edit {
+        if norm_layer is None:
+            self.norm2 = None
+        else:
+            self.norm2 = norm_layer(dim)
+        # } H-Edit
         mlp_hidden_dim = int(dim * mlp_ratio)
         self.mlp = Mlp(in_features=dim, hidden_features=mlp_hidden_dim,act_layer=act_layer, drop=drop) if token_mlp=='ffn' else LeFF(dim,mlp_hidden_dim,act_layer=act_layer, drop=drop)
         self.CAB = CAB(dim, kernel_size=3, reduction=4, bias=False, act=nn.PReLU())
@@ -828,7 +903,10 @@ class SIMTransformerBlock(nn.Module):
             attn_mask = attn_mask + shift_attn_mask if attn_mask is not None else shift_attn_mask
             
         shortcut = x
-        x = self.norm1(x)
+        # H-Edit {
+        if self.norm1:
+            x = self.norm1(x)
+        # } H-Edit
 
 
 
@@ -874,7 +952,12 @@ class SIMTransformerBlock(nn.Module):
 
         # FFN
         x = shortcut + self.drop_path(x)
-        x = x + self.drop_path(self.mlp(self.norm2(x), img_size=img_size))
+        # H-Edit {
+        if self.norm2:
+            x = x + self.drop_path(self.mlp(self.norm2(x), img_size=img_size))
+        else:
+            x = x + self.drop_path(self.mlp(x, img_size=img_size))
+        # } H-Edit
 
         del attn_mask
         return x
@@ -894,9 +977,12 @@ class SIMTransformerBlock(nn.Module):
         return flops
 
 
-#########################################
-########### Basic layer of ShadowFormer ################
+
+###########################################################################
+# SHADOWFORMER
+
 class BasicShadowFormer(nn.Module):
+    '''Basic layer of ShadowFormer'''
     def __init__(self, dim, output_dim, input_resolution, depth, num_heads, win_size,
                  mlp_ratio=4., qkv_bias=True, qk_scale=None, drop=0., attn_drop=0.,
                  drop_path=0., norm_layer=nn.LayerNorm, use_checkpoint=False,
@@ -957,7 +1043,9 @@ class ShadowFormer(nn.Module):
                  drop_rate=0., attn_drop_rate=0., drop_path_rate=0.1,
                  norm_layer=nn.LayerNorm, patch_norm=True,
                  use_checkpoint=False, token_projection='linear', token_mlp='leff', se_layer=True,
-                 dowsample=Downsample, upsample=Upsample, **kwargs):
+                # H-Edit {
+                 dowsample=Downsample, upsample=Upsample, use_log=False, **kwargs):
+                # } H-Edit
         super().__init__()
 
         self.num_enc_layers = len(depths)//2
@@ -970,6 +1058,9 @@ class ShadowFormer(nn.Module):
         self.win_size =win_size
         self.reso = img_size
         self.pos_drop = nn.Dropout(p=drop_rate)
+        # H-Edit {
+        self.use_log = use_log
+        # } H-Edit
 
         # stochastic depth
         enc_dpr = [x.item() for x in torch.linspace(0, drop_path_rate, sum(depths[:self.num_enc_layers]))]
@@ -984,114 +1075,243 @@ class ShadowFormer(nn.Module):
         # self.CAB = CAB(embed_dim, kernel_size=3, reduction=4, bias=False, act=nn.PReLU())
 
         # Encoder
-        self.encoderlayer_0 = BasicShadowFormer(dim=embed_dim,
-                            output_dim=embed_dim,
-                            input_resolution=(img_size,
-                                                img_size),
-                            depth=depths[0],
-                            num_heads=num_heads[0],
-                            win_size=win_size,
-                            mlp_ratio=self.mlp_ratio,
-                            qkv_bias=qkv_bias, qk_scale=qk_scale,
-                            drop=drop_rate, attn_drop=attn_drop_rate,
-                            drop_path=enc_dpr[sum(depths[:0]):sum(depths[:1])],
-                            norm_layer=norm_layer,
-                            use_checkpoint=use_checkpoint,
-                            token_projection=token_projection,token_mlp=token_mlp,se_layer=se_layer,cab=True)
+        # H-Edit {
+        if self.use_log:
+            self.encoderlayer_0 = BasicShadowFormer(dim=embed_dim,
+                                output_dim=embed_dim,
+                                input_resolution=(img_size,
+                                                    img_size),
+                                depth=depths[0],
+                                num_heads=num_heads[0],
+                                win_size=win_size,
+                                mlp_ratio=self.mlp_ratio,
+                                qkv_bias=qkv_bias, qk_scale=qk_scale,
+                                drop=drop_rate, attn_drop=attn_drop_rate,
+                                drop_path=enc_dpr[sum(depths[:0]):sum(depths[:1])],
+                                norm_layer=None,
+                                use_checkpoint=use_checkpoint,
+                                token_projection=token_projection,token_mlp=token_mlp,se_layer=se_layer,cab=True)
+        else:
+            self.encoderlayer_0 = BasicShadowFormer(dim=embed_dim,
+                                output_dim=embed_dim,
+                                input_resolution=(img_size,
+                                                    img_size),
+                                depth=depths[0],
+                                num_heads=num_heads[0],
+                                win_size=win_size,
+                                mlp_ratio=self.mlp_ratio,
+                                qkv_bias=qkv_bias, qk_scale=qk_scale,
+                                drop=drop_rate, attn_drop=attn_drop_rate,
+                                drop_path=enc_dpr[sum(depths[:0]):sum(depths[:1])],
+                                norm_layer=norm_layer,
+                                use_checkpoint=use_checkpoint,
+                                token_projection=token_projection,token_mlp=token_mlp,se_layer=se_layer,cab=True)
+        # } H-Edit
         self.dowsample_0 = dowsample(embed_dim, embed_dim*2)
-        self.encoderlayer_1 = BasicShadowFormer(dim=embed_dim*2,
-                            output_dim=embed_dim*2,
-                            input_resolution=(img_size // 2,
-                                                img_size // 2),
-                            depth=depths[1],
-                            num_heads=num_heads[1],
-                            win_size=win_size,
-                            mlp_ratio=self.mlp_ratio,
-                            qkv_bias=qkv_bias, qk_scale=qk_scale,
-                            drop=drop_rate, attn_drop=attn_drop_rate,
-                            drop_path=enc_dpr[sum(depths[:1]):sum(depths[:2])],
-                            norm_layer=norm_layer,
-                            use_checkpoint=use_checkpoint,
-                            token_projection=token_projection,token_mlp=token_mlp,se_layer=se_layer, cab=True)
+        # H-Edit {
+        if self.use_log:
+            self.encoderlayer_1 = BasicShadowFormer(dim=embed_dim*2,
+                    output_dim=embed_dim*2,
+                    input_resolution=(img_size // 2,
+                                        img_size // 2),
+                    depth=depths[1],
+                    num_heads=num_heads[1],
+                    win_size=win_size,
+                    mlp_ratio=self.mlp_ratio,
+                    qkv_bias=qkv_bias, qk_scale=qk_scale,
+                    drop=drop_rate, attn_drop=attn_drop_rate,
+                    drop_path=enc_dpr[sum(depths[:1]):sum(depths[:2])],
+                    norm_layer=None,
+                    use_checkpoint=use_checkpoint,
+                    token_projection=token_projection,token_mlp=token_mlp,se_layer=se_layer, cab=True)
+        
+        else:
+            self.encoderlayer_1 = BasicShadowFormer(dim=embed_dim*2,
+                                output_dim=embed_dim*2,
+                                input_resolution=(img_size // 2,
+                                                    img_size // 2),
+                                depth=depths[1],
+                                num_heads=num_heads[1],
+                                win_size=win_size,
+                                mlp_ratio=self.mlp_ratio,
+                                qkv_bias=qkv_bias, qk_scale=qk_scale,
+                                drop=drop_rate, attn_drop=attn_drop_rate,
+                                drop_path=enc_dpr[sum(depths[:1]):sum(depths[:2])],
+                                norm_layer=norm_layer,
+                                use_checkpoint=use_checkpoint,
+                                token_projection=token_projection,token_mlp=token_mlp,se_layer=se_layer, cab=True)
+        # } H-Edit
         self.dowsample_1 = dowsample(embed_dim*2, embed_dim*4)
-        self.encoderlayer_2 = BasicShadowFormer(dim=embed_dim*4,
-                            output_dim=embed_dim*4,
-                            input_resolution=(img_size // (2 ** 2),
-                                                img_size // (2 ** 2)),
-                            depth=depths[2],
-                            num_heads=num_heads[2],
-                            win_size=win_size,
-                            mlp_ratio=self.mlp_ratio,
-                            qkv_bias=qkv_bias, qk_scale=qk_scale,
-                            drop=drop_rate, attn_drop=attn_drop_rate,
-                            drop_path=enc_dpr[sum(depths[:2]):sum(depths[:3])],
-                            norm_layer=norm_layer,
-                            use_checkpoint=use_checkpoint,
-                            token_projection=token_projection,token_mlp=token_mlp,se_layer=se_layer)
+        # H-Edit {
+        if self.use_log:
+            self.encoderlayer_2 = BasicShadowFormer(dim=embed_dim*4,
+                    output_dim=embed_dim*4,
+                    input_resolution=(img_size // (2 ** 2),
+                                        img_size // (2 ** 2)),
+                    depth=depths[2],
+                    num_heads=num_heads[2],
+                    win_size=win_size,
+                    mlp_ratio=self.mlp_ratio,
+                    qkv_bias=qkv_bias, qk_scale=qk_scale,
+                    drop=drop_rate, attn_drop=attn_drop_rate,
+                    drop_path=enc_dpr[sum(depths[:2]):sum(depths[:3])],
+                    norm_layer=None,
+                    use_checkpoint=use_checkpoint,
+                    token_projection=token_projection,token_mlp=token_mlp,se_layer=se_layer)
+
+        else:
+            self.encoderlayer_2 = BasicShadowFormer(dim=embed_dim*4,
+                                output_dim=embed_dim*4,
+                                input_resolution=(img_size // (2 ** 2),
+                                                    img_size // (2 ** 2)),
+                                depth=depths[2],
+                                num_heads=num_heads[2],
+                                win_size=win_size,
+                                mlp_ratio=self.mlp_ratio,
+                                qkv_bias=qkv_bias, qk_scale=qk_scale,
+                                drop=drop_rate, attn_drop=attn_drop_rate,
+                                drop_path=enc_dpr[sum(depths[:2]):sum(depths[:3])],
+                                norm_layer=norm_layer,
+                                use_checkpoint=use_checkpoint,
+                                token_projection=token_projection,token_mlp=token_mlp,se_layer=se_layer)
+        # } H-Edit
         self.dowsample_2 = dowsample(embed_dim*4, embed_dim*8)
 
         # Bottleneck
-        self.conv = BasicShadowFormer(dim=embed_dim*8,
-                            output_dim=embed_dim*8,
-                            input_resolution=(img_size // (2 ** 3),
-                                                img_size // (2 ** 3)),
-                            depth=depths[4],
-                            num_heads=num_heads[4],
-                            win_size=win_size,
-                            mlp_ratio=self.mlp_ratio,
-                            qkv_bias=qkv_bias, qk_scale=qk_scale,
-                            drop=drop_rate, attn_drop=attn_drop_rate,
-                            drop_path=conv_dpr,
-                            norm_layer=norm_layer,
-                            use_checkpoint=use_checkpoint,
-                            token_projection=token_projection,token_mlp=token_mlp,se_layer=se_layer)
+        # H-Edit {
+        if self.use_log:
+            self.conv = BasicShadowFormer(dim=embed_dim*8,
+                                output_dim=embed_dim*8,
+                                input_resolution=(img_size // (2 ** 3),
+                                                    img_size // (2 ** 3)),
+                                depth=depths[4],
+                                num_heads=num_heads[4],
+                                win_size=win_size,
+                                mlp_ratio=self.mlp_ratio,
+                                qkv_bias=qkv_bias, qk_scale=qk_scale,
+                                drop=drop_rate, attn_drop=attn_drop_rate,
+                                drop_path=conv_dpr,
+                                norm_layer=None,
+                                use_checkpoint=use_checkpoint,
+                                token_projection=token_projection,token_mlp=token_mlp,se_layer=se_layer)
 
-        # # Decoder
+        else:
+            self.conv = BasicShadowFormer(dim=embed_dim*8,
+                                output_dim=embed_dim*8,
+                                input_resolution=(img_size // (2 ** 3),
+                                                    img_size // (2 ** 3)),
+                                depth=depths[4],
+                                num_heads=num_heads[4],
+                                win_size=win_size,
+                                mlp_ratio=self.mlp_ratio,
+                                qkv_bias=qkv_bias, qk_scale=qk_scale,
+                                drop=drop_rate, attn_drop=attn_drop_rate,
+                                drop_path=conv_dpr,
+                                norm_layer=norm_layer,
+                                use_checkpoint=use_checkpoint,
+                                token_projection=token_projection,token_mlp=token_mlp,se_layer=se_layer)
+        # } H-Edit
+
+        # Decoder
         self.upsample_0 = upsample(embed_dim*8, embed_dim*4)
-        self.decoderlayer_0 = BasicShadowFormer(dim=embed_dim*8,
-                            output_dim=embed_dim*8,
-                            input_resolution=(img_size // (2 ** 2),
-                                                img_size // (2 ** 2)),
-                            depth=depths[6],
-                            num_heads=num_heads[6],
-                            win_size=win_size,
-                            mlp_ratio=self.mlp_ratio,
-                            qkv_bias=qkv_bias, qk_scale=qk_scale,
-                            drop=drop_rate, attn_drop=attn_drop_rate,
-                            drop_path=dec_dpr[sum(depths[5:6]):sum(depths[5:7])],
-                            norm_layer=norm_layer,
-                            use_checkpoint=use_checkpoint,
-                            token_projection=token_projection,token_mlp=token_mlp,se_layer=se_layer)
+        # H-Edit {
+        if self.use_log:
+            self.decoderlayer_0 = BasicShadowFormer(dim=embed_dim*8,
+                                output_dim=embed_dim*8,
+                                input_resolution=(img_size // (2 ** 2),
+                                                    img_size // (2 ** 2)),
+                                depth=depths[6],
+                                num_heads=num_heads[6],
+                                win_size=win_size,
+                                mlp_ratio=self.mlp_ratio,
+                                qkv_bias=qkv_bias, qk_scale=qk_scale,
+                                drop=drop_rate, attn_drop=attn_drop_rate,
+                                drop_path=dec_dpr[sum(depths[5:6]):sum(depths[5:7])],
+                                norm_layer=None,
+                                use_checkpoint=use_checkpoint,
+                                token_projection=token_projection,token_mlp=token_mlp,se_layer=se_layer)
+        else:
+            self.decoderlayer_0 = BasicShadowFormer(dim=embed_dim*8,
+                                output_dim=embed_dim*8,
+                                input_resolution=(img_size // (2 ** 2),
+                                                    img_size // (2 ** 2)),
+                                depth=depths[6],
+                                num_heads=num_heads[6],
+                                win_size=win_size,
+                                mlp_ratio=self.mlp_ratio,
+                                qkv_bias=qkv_bias, qk_scale=qk_scale,
+                                drop=drop_rate, attn_drop=attn_drop_rate,
+                                drop_path=dec_dpr[sum(depths[5:6]):sum(depths[5:7])],
+                                norm_layer=norm_layer,
+                                use_checkpoint=use_checkpoint,
+                                token_projection=token_projection,token_mlp=token_mlp,se_layer=se_layer)
+        # } H-Edit
         self.upsample_1 = upsample(embed_dim*8, embed_dim*2)
-        self.decoderlayer_1 = BasicShadowFormer(dim=embed_dim*4,
-                            output_dim=embed_dim*4,
-                            input_resolution=(img_size // 2,
-                                                img_size // 2),
-                            depth=depths[7],
-                            num_heads=num_heads[7],
-                            win_size=win_size,
-                            mlp_ratio=self.mlp_ratio,
-                            qkv_bias=qkv_bias, qk_scale=qk_scale,
-                            drop=drop_rate, attn_drop=attn_drop_rate,
-                            drop_path=dec_dpr[sum(depths[5:7]):sum(depths[5:8])],
-                            norm_layer=norm_layer,
-                            use_checkpoint=use_checkpoint,
-                            token_projection=token_projection,token_mlp=token_mlp,se_layer=se_layer, cab=True)
+        # H-Edit {
+        if self.use_log:
+            self.decoderlayer_1 = BasicShadowFormer(dim=embed_dim*4,
+                                output_dim=embed_dim*4,
+                                input_resolution=(img_size // 2,
+                                                    img_size // 2),
+                                depth=depths[7],
+                                num_heads=num_heads[7],
+                                win_size=win_size,
+                                mlp_ratio=self.mlp_ratio,
+                                qkv_bias=qkv_bias, qk_scale=qk_scale,
+                                drop=drop_rate, attn_drop=attn_drop_rate,
+                                drop_path=dec_dpr[sum(depths[5:7]):sum(depths[5:8])],
+                                norm_layer=None,
+                                use_checkpoint=use_checkpoint,
+                                token_projection=token_projection,token_mlp=token_mlp,se_layer=se_layer, cab=True)
+        else:
+            self.decoderlayer_1 = BasicShadowFormer(dim=embed_dim*4,
+                                output_dim=embed_dim*4,
+                                input_resolution=(img_size // 2,
+                                                    img_size // 2),
+                                depth=depths[7],
+                                num_heads=num_heads[7],
+                                win_size=win_size,
+                                mlp_ratio=self.mlp_ratio,
+                                qkv_bias=qkv_bias, qk_scale=qk_scale,
+                                drop=drop_rate, attn_drop=attn_drop_rate,
+                                drop_path=dec_dpr[sum(depths[5:7]):sum(depths[5:8])],
+                                norm_layer=norm_layer,
+                                use_checkpoint=use_checkpoint,
+                                token_projection=token_projection,token_mlp=token_mlp,se_layer=se_layer, cab=True)
+        # } H-Edit
         self.upsample_2 = upsample(embed_dim*4, embed_dim)
-        self.decoderlayer_2 = BasicShadowFormer(dim=embed_dim*2,
-                            output_dim=embed_dim*2,
-                            input_resolution=(img_size,
-                                                img_size),
-                            depth=depths[8],
-                            num_heads=num_heads[8],
-                            win_size=win_size,
-                            mlp_ratio=self.mlp_ratio,
-                            qkv_bias=qkv_bias, qk_scale=qk_scale,
-                            drop=drop_rate, attn_drop=attn_drop_rate,
-                            drop_path=dec_dpr[sum(depths[5:8]):sum(depths[5:9])],
-                            norm_layer=norm_layer,
-                            use_checkpoint=use_checkpoint,
-                            token_projection=token_projection,token_mlp=token_mlp,se_layer=se_layer,cab=True)
+        # H-Edit {
+        if self.use_log:
+            self.decoderlayer_2 = BasicShadowFormer(dim=embed_dim*2,
+                                output_dim=embed_dim*2,
+                                input_resolution=(img_size,
+                                                    img_size),
+                                depth=depths[8],
+                                num_heads=num_heads[8],
+                                win_size=win_size,
+                                mlp_ratio=self.mlp_ratio,
+                                qkv_bias=qkv_bias, qk_scale=qk_scale,
+                                drop=drop_rate, attn_drop=attn_drop_rate,
+                                drop_path=dec_dpr[sum(depths[5:8]):sum(depths[5:9])],
+                                norm_layer=None,
+                                use_checkpoint=use_checkpoint,
+                                token_projection=token_projection,token_mlp=token_mlp,se_layer=se_layer,cab=True)
+        else:
+            self.decoderlayer_2 = BasicShadowFormer(dim=embed_dim*2,
+                                output_dim=embed_dim*2,
+                                input_resolution=(img_size,
+                                                    img_size),
+                                depth=depths[8],
+                                num_heads=num_heads[8],
+                                win_size=win_size,
+                                mlp_ratio=self.mlp_ratio,
+                                qkv_bias=qkv_bias, qk_scale=qk_scale,
+                                drop=drop_rate, attn_drop=attn_drop_rate,
+                                drop_path=dec_dpr[sum(depths[5:8]):sum(depths[5:9])],
+                                norm_layer=norm_layer,
+                                use_checkpoint=use_checkpoint,
+                                token_projection=token_projection,token_mlp=token_mlp,se_layer=se_layer,cab=True)
+        # } H-Edit
         self.apply(self._init_weights)
 
     def _init_weights(self, m):
@@ -1158,5 +1378,12 @@ class ShadowFormer(nn.Module):
         deconv2 = self.decoderlayer_2(deconv2, xm, mask=mask, img_size = self.img_size)
 
         # Output Projection
-        y = self.output_proj(deconv2, img_size = self.img_size) + x
-        return y
+        # H-Edit {
+        output_proj = self.output_proj(deconv2, img_size = self.img_size)
+        y = output_proj + x
+        if self.use_log:
+            linear_y = torch.exp(y)
+            linear_y = torch.div(linear_y, 65535)
+            return linear_y, output_proj
+        return y, output_proj # corrected image, residual added to the shadow image
+        # } H-Edit
