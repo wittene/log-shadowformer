@@ -77,16 +77,9 @@ class Options():
         parser.add_argument('--warmup', action='store_true', default=True, help='warmup')
         parser.add_argument('--warmup_epochs', type=int, default=3, help='epochs for warmup')
 
-        # args for linear and log traing
-
-        # these are added by me
-
+        # args for linear and log training
         parser.add_argument('--img_divisor', type=float, default=PNG_DIVISOR, help='value to scale images to [0, 1]') # Just leave it default.
         parser.add_argument('--linear_transform', action='store_true', default=False, help='Transform to pseudolinear') # get pseudolinear data
         parser.add_argument('--log_transform', action='store_true', default=False, help='Transform to pseudolog') # must call both flags, --linear_transform and --log_transform
-        # don't use this, it won't work, delete all references
-        parser.add_argument('--lr_finder', action='store_true', default=False, help='Use LR scheduler')
-        parser.add_argument('--lr_low', type=float, default=0.00002, help='start value for lr_finder')
-        parser.add_argument('--lr_high', type=float, default=0.2, help='end value for lr_finder')
 
         return parser
