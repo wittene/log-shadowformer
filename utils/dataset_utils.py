@@ -1,5 +1,8 @@
 import torch
+import numpy as np
 import os
+
+from util import dilate_mask
 
 ### rotate and flip
 class Augment_RGB_torch:
@@ -50,3 +53,26 @@ class MixUp_AUG:
         # gray_mask = torch.where(gray_mask>0.01, torch.ones_like(gray_mask), torch.zeros_like(gray_mask))
         # gray_contour = lam * gray_contour + (1-lam) * gray_contour2
         return rgb_gt, rgb_noisy, gray_mask
+
+
+### adjust shadow/no-shadow images
+    
+def expand_to_three_channel(two_channel):
+    three_channel = np.array([np.zeros_like(two_channel), 
+                        np.zeros_like(two_channel), 
+                        np.zeros_like(two_channel)])
+    three_channel[0,:,:] = two_channel
+    three_channel[1,:,:] = two_channel
+    three_channel[2,:,:] = two_channel
+    return three_channel
+
+def adjust_target_colors(noshadowimg, shadowimg, mask):
+    dilated_mask = dilate_mask(mask)
+    noshadow_avg = np.mean(noshadowimg[dilated_mask != 1])
+    shadow_avg = np.mean(shadowimg[dilated_mask != 1])
+    dmask = expand_to_three_channel(dilated_mask)
+    dmask = np.moveaxis(dmask, 0, 2)
+    gamma = noshadow_avg / shadow_avg
+    noshadow_adjusted = noshadowimg * gamma
+    noshadow_adjusted[noshadow_adjusted > 1] = 1
+    return noshadow_adjusted

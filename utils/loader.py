@@ -1,11 +1,12 @@
 import os
 
 from dataset import DataLoaderTrain, DataLoaderVal
-def get_training_data(rgb_dir, img_options, divisor, linear_transform, log_transform):
-    assert os.path.exists(rgb_dir)
-    return DataLoaderTrain(rgb_dir, divisor, linear_transform, log_transform, img_options, None)
+from utils import LoadOpts
 
-def get_validation_data(rgb_dir, divisor, linear_transform, log_transform):
-    print("GOT VAL DATA")
+def get_training_data(rgb_dir, load_opts: LoadOpts, img_opts):
     assert os.path.exists(rgb_dir)
-    return DataLoaderVal(rgb_dir, divisor, linear_transform, log_transform)
+    return DataLoaderTrain(rgb_dir, load_opts=load_opts, img_opts=img_opts, target_transform=None)
+
+def get_validation_data(rgb_dir, load_opts: LoadOpts):
+    assert os.path.exists(rgb_dir)
+    return DataLoaderVal(rgb_dir, load_opts=load_opts)

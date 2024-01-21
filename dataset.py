@@ -2,7 +2,7 @@ import numpy as np
 import os
 from torch.utils.data import Dataset
 import torch
-from utils import is_png_file, load_img, load_val_img, load_mask, load_val_mask, Augment_RGB_torch
+from utils import LoadOpts, load_img, load_val_img, load_mask, load_val_mask, Augment_RGB_torch, adjust_target_colors
 import torch.nn.functional as F
 import random
 import matplotlib.pyplot as plt
@@ -12,11 +12,10 @@ transforms_aug = [method for method in dir(augment) if callable(getattr(augment,
 
 ##################################################################################################
 class DataLoaderTrain(Dataset):
-    def __init__(self, rgb_dir, divisor, linear_transform, log_transform, img_options=None, target_transform=None):
+    def __init__(self, rgb_dir, load_opts: LoadOpts = LoadOpts(), img_opts=None):
         super(DataLoaderTrain, self).__init__()
-
-        self.target_transform = target_transform
         
+        # Get image filenames
         gt_dir = 'train_C'
         input_dir = 'train_A'
         mask_dir = 'train_B'
@@ -28,31 +27,33 @@ class DataLoaderTrain(Dataset):
         self.clean_filenames = [os.path.join(rgb_dir, gt_dir, x) for x in clean_files]
         self.noisy_filenames = [os.path.join(rgb_dir, input_dir, x) for x in noisy_files]
         self.mask_filenames = [os.path.join(rgb_dir, mask_dir, x) for x in mask_files]
-        
-        # self.clean_filenames = [os.path.join(rgb_dir, gt_dir, x) for x in clean_files if is_png_file(x)]
-        # self.noisy_filenames = [os.path.join(rgb_dir, input_dir, x) for x in noisy_files if is_png_file(x)]
-        # self.mask_filenames = [os.path.join(rgb_dir, mask_dir, x) for x in mask_files if is_png_file(x)]
 
-        self.img_options = img_options
+        # Options for processing the images, e.g. patch size
+        self.img_opts = img_opts
 
-        self.tar_size = len(self.clean_filenames)  # get the size of target
+        # Number of targets, size of dataset
+        self.tar_size = len(self.clean_filenames)
 
-        self.divisor = divisor
-        self.linear_transform = linear_transform
-        self.log_transform = log_transform
+        # Load options
+        self.load_opts = load_opts
 
     def __len__(self):
         return self.tar_size
 
     def __getitem__(self, index):
         tar_index   = index % self.tar_size
-        clean = torch.from_numpy(np.float32(load_img(self.clean_filenames[tar_index], self.divisor, self.linear_transform, self.log_transform)))
-        # print(f"CLEAN MAX: {torch.max(clean)}")
-        # print(f"CLEAN MIN: {torch.min(clean)}")
-        noisy = torch.from_numpy(np.float32(load_img(self.noisy_filenames[tar_index], self.divisor, self.linear_transform, self.log_transform)))
-        # print(f"NOISY MAX: {torch.max(noisy)}")
-        # print(f"NOISY MIN: {torch.min(noisy)}")
+
+        # Load and adjust images
+
+        clean = np.float32(load_img(self.clean_filenames[tar_index], load_opts=self.load_opts))
+        noisy = np.float32(load_img(self.noisy_filenames[tar_index], load_opts=self.load_opts))
         mask = load_mask(self.mask_filenames[tar_index])
+        
+        if self.load_opts.target_adjust:
+            clean = adjust_target_colors(clean, noisy, mask)
+        
+        clean = torch.from_numpy(clean)
+        noisy = torch.from_numpy(noisy)
         mask = torch.from_numpy(np.float32(mask))
 
         clean = clean.permute(2,0,1)
@@ -62,8 +63,9 @@ class DataLoaderTrain(Dataset):
         noisy_filename = os.path.split(self.noisy_filenames[tar_index])[-1]
         mask_filename = os.path.split(self.mask_filenames[tar_index])[-1]
 
-        #Crop Input and Target
-        ps = self.img_options['patch_size']
+        # Crop input and target
+
+        ps = self.img_opts['patch_size']
         H = clean.shape[1]
         W = clean.shape[2]
         # r = np.random.randint(0, H - ps) if not H-ps else 0
@@ -84,15 +86,15 @@ class DataLoaderTrain(Dataset):
         noisy = getattr(augment, apply_trans)(noisy)        
         mask = getattr(augment, apply_trans)(mask)
         mask = torch.unsqueeze(mask, dim=0)
+        
         return clean, noisy, mask, clean_filename, noisy_filename
 
 ##################################################################################################
 class DataLoaderVal(Dataset):
-    def __init__(self, rgb_dir, divisor, linear_transform, log_transform, target_transform=None):
+    def __init__(self, rgb_dir, load_opts: LoadOpts = LoadOpts()):
         super(DataLoaderVal, self).__init__()
 
-        self.target_transform = target_transform
-
+        # Get image filenames
         gt_dir = 'test_C'
         input_dir = 'test_A'
         mask_dir = 'test_B'
@@ -105,35 +107,43 @@ class DataLoaderVal(Dataset):
         self.noisy_filenames = [os.path.join(rgb_dir, input_dir, x) for x in noisy_files]
         self.mask_filenames = [os.path.join(rgb_dir, mask_dir, x) for x in mask_files]
 
-
-        # self.clean_filenames = [os.path.join(rgb_dir, gt_dir, x) for x in clean_files if is_png_file(x)]
-        # self.noisy_filenames = [os.path.join(rgb_dir, input_dir, x) for x in noisy_files if is_png_file(x)]
-        # self.mask_filenames = [os.path.join(rgb_dir, mask_dir, x) for x in mask_files if is_png_file(x)]
-
-
+        # Number of targets, size of dataset
         self.tar_size = len(self.clean_filenames)
 
-        self.divisor = divisor
-        self.linear_transform = linear_transform
-        self.log_transform = log_transform
+        # Load options
+        self.load_opts = load_opts
 
     def __len__(self):
         return self.tar_size
 
     def __getitem__(self, index):
         tar_index   = index % self.tar_size
-        
 
-        clean = torch.from_numpy(np.float32(load_img(self.clean_filenames[tar_index], self.divisor, self.linear_transform, self.log_transform)))
-        # print(f"VAL CLEAN MAX: {torch.max(clean)}")
-        # print(f"VAL CLEAN MIN: {torch.min(clean)}")
-        noisy = torch.from_numpy(np.float32(load_img(self.noisy_filenames[tar_index], self.divisor, self.linear_transform, self.log_transform)))
-        # print(f"VAL NOISY MAX: {torch.max(noisy)}")
-        # print(f"VAL NOISY MIN: {torch.min(noisy)}")
-        mask = load_mask(self.mask_filenames[tar_index])
+        '''
+        clean_orig = np.float32(load_img(self.clean_filenames[tar_index]))
+        noisy_orig = np.float32(load_img(self.noisy_filenames[tar_index]))
+        mask_orig = load_mask(self.mask_filenames[tar_index])
+        
+        # TODO: add param flag
+        clean_adj = adjust_noshadowimg(clean_orig, noisy_orig, mask_orig)        
+        
+        clean = torch.from_numpy(clean_adj)
+        noisy = torch.from_numpy(noisy_orig)
+        mask = torch.from_numpy(np.float32(mask_orig))
+        '''
+
+        # Load and adjust images
+
+        clean = np.float32(load_val_img(self.clean_filenames[tar_index], load_opts=self.load_opts))
+        noisy = np.float32(load_val_img(self.noisy_filenames[tar_index], load_opts=self.load_opts))
+        mask = load_val_mask(self.mask_filenames[tar_index])
+        
+        if self.load_opts.target_adjust:
+            clean = adjust_target_colors(clean, noisy, mask)
+        
+        clean = torch.from_numpy(clean)
+        noisy = torch.from_numpy(noisy)
         mask = torch.from_numpy(np.float32(mask))
-        # print(f"VAL MASK MAX: {torch.max(mask)}")
-        # print(f"VAL MASK MIN: {torch.min(mask)}")
 
         clean_filename = os.path.split(self.clean_filenames[tar_index])[-1]
         noisy_filename = os.path.split(self.noisy_filenames[tar_index])[-1]

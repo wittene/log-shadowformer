@@ -81,5 +81,6 @@ class Options():
         parser.add_argument('--img_divisor', type=float, default=PNG_DIVISOR, help='value to scale images to [0, 1]') # Just leave it default.
         parser.add_argument('--linear_transform', action='store_true', default=False, help='Transform to pseudolinear') # get pseudolinear data
         parser.add_argument('--log_transform', action='store_true', default=False, help='Transform to pseudolog') # must call both flags, --linear_transform and --log_transform
+        parser.add_argument('--target_adjust', action='store_true', default=False, help='Adjust target colors to match ground truth')
 
         return parser

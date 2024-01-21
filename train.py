@@ -3,28 +3,7 @@ import sys
 import json
 import matplotlib.pyplot as plt
 
-MAX_LOG_VAL = 11.0903
-
-# add dir
-dir_name = os.path.dirname(os.path.abspath(__file__))
-sys.path.append(os.path.join(dir_name,'./auxiliary/'))
-print(dir_name)
-
-import argparse
-import options
-######### parser ###########
-opt = options.Options().init(argparse.ArgumentParser(description='image denoising')).parse_args()
-print(opt)
-
-import utils
-######### Set GPUs ###########
-os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-os.environ["CUDA_VISIBLE_DEVICES"] = opt.gpu
 import torch
-torch.backends.cudnn.benchmark = True
-# from piqa import SSIM
-# device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-# print(device)
 import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader
@@ -45,7 +24,44 @@ from warmup_scheduler import GradualWarmupScheduler
 from torch.optim.lr_scheduler import StepLR
 from timm.utils import NativeScaler
 
+import utils
+from utils import LoadOpts
 from utils.loader import get_training_data, get_validation_data
+
+
+
+MAX_LOG_VAL = 11.0903
+
+# add dir
+dir_name = os.path.dirname(os.path.abspath(__file__))
+sys.path.append(os.path.join(dir_name,'./auxiliary/'))
+print(dir_name)
+
+######### parser ###########
+import argparse
+import options
+opt = options.Options().init(argparse.ArgumentParser(description='image denoising')).parse_args()
+print(opt)
+
+load_opts = LoadOpts(
+    divisor=opt.img_divisor, 
+    linear_transform=opt.linear_transform, 
+    log_transform=opt.log_transform,
+    target_adjust=opt.target_adjust
+)
+
+img_opts_train = {
+    'patch_size': opt.train_ps
+}
+
+
+######### Set GPUs ###########
+os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
+os.environ["CUDA_VISIBLE_DEVICES"] = opt.gpu
+torch.backends.cudnn.benchmark = True
+# from piqa import SSIM
+# device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+# print(device)
 
 
 ######### Logs dir ########### 
@@ -151,12 +167,11 @@ criterion = CharbonnierLoss().cuda()
 
 ######### DataLoader ###########
 print('===> Loading datasets')
-img_options_train = {'patch_size':opt.train_ps}
-train_dataset = get_training_data(opt.train_dir, img_options_train, divisor=opt.img_divisor, linear_transform=opt.linear_transform, log_transform=opt.log_transform)
+train_dataset = get_training_data(opt.train_dir, load_opts=load_opts, img_opts=img_opts_train)
 train_loader = DataLoader(dataset=train_dataset, batch_size=opt.batch_size, shuffle=True, 
         num_workers=opt.train_workers, pin_memory=True, drop_last=False)
 
-val_dataset = get_validation_data(opt.val_dir, opt.img_divisor, linear_transform=opt.linear_transform, log_transform=opt.log_transform)
+val_dataset = get_validation_data(opt.val_dir, load_opts=load_opts)
 val_loader = DataLoader(dataset=val_dataset, batch_size=1, shuffle=False,
         num_workers=opt.eval_workers, pin_memory=False, drop_last=False)
 
