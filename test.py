@@ -120,7 +120,7 @@ with torch.no_grad():
         mask = F.pad(mask, (0, padw, 0, padh), 'reflect')
 
         if args.tile is None:
-            rgb_restored = model_restoration(rgb_noisy, mask)
+            rgb_restored, _ = model_restoration(rgb_noisy, mask)
         else:
             # test the image tile by tile
             b, c, h, w = rgb_noisy.shape
@@ -138,7 +138,7 @@ with torch.no_grad():
                 for w_idx in w_idx_list:
                     in_patch = rgb_noisy[..., h_idx:h_idx + tile, w_idx:w_idx + tile]
                     mask_patch = mask[..., h_idx:h_idx + tile, w_idx:w_idx + tile]
-                    out_patch = model_restoration(in_patch, mask_patch)
+                    out_patch, _ = model_restoration(in_patch, mask_patch)
                     out_patch_mask = torch.ones_like(out_patch)
 
                     E[..., h_idx:(h_idx + tile), w_idx:(w_idx + tile)].add_(out_patch)

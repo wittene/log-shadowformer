@@ -2,7 +2,7 @@ import torch
 import numpy as np
 import os
 
-from util import dilate_mask
+from .image_utils import dilate_mask
 
 ### rotate and flip
 class Augment_RGB_torch:

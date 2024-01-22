@@ -4,28 +4,12 @@ import pickle
 import cv2
 from skimage.color import rgb2lab
 import matplotlib.pyplot as plt
+from options import LoadOptions
 
 ##################################################
 # CONSTANTS
 
 MAX_LOG_VAL = 65535
-
-
-
-##################################################
-# CLASSES
-
-class LoadOpts():
-    '''Options when loading an image'''
-    def __init__(self, divisor=255, linear_transform=False, log_transform=False, target_adjust=False):
-        # Normalization constant
-        self.divisor = divisor
-        # Flag for linear transform
-        self.linear_transform = linear_transform
-        # Flag for log transform
-        self.log_transform = log_transform
-        # Flag for target color adjustment
-        self.target_adjust = target_adjust
 
 
 
@@ -143,7 +127,7 @@ def load_npy(filepath):
     img = np.load(filepath)
     return img
 
-def load_img(filepath, load_opts: LoadOpts = LoadOpts()):
+def load_img(filepath, load_opts: LoadOptions = LoadOptions()):
     img = cv2.cvtColor(cv2.imread(filepath, cv2.IMREAD_UNCHANGED), cv2.COLOR_BGR2RGB)
     # img = cv2.resize(img, [256, 256], interpolation=cv2.INTER_AREA)
     img = img.astype(np.float32)
@@ -158,7 +142,7 @@ def load_img(filepath, load_opts: LoadOpts = LoadOpts()):
         raise Exception("Cannot perform a log transform without a linear transform first.")
     return img
 
-def load_val_img(filepath, load_opts: LoadOpts = LoadOpts()):
+def load_val_img(filepath, load_opts: LoadOptions = LoadOptions()):
     img = cv2.cvtColor(cv2.imread(filepath, cv2.IMREAD_UNCHANGED), cv2.COLOR_BGR2RGB)
     # img = cv2.resize(img, [256, 256], interpolation=cv2.INTER_AREA)
     resized_img = img.astype(np.float32)
@@ -197,11 +181,11 @@ def load_val_mask(filepath):
 def save_img(img, filepath):
     cv2.imwrite(filepath, cv2.cvtColor(img, cv2.COLOR_RGB2BGR))
 
-def imsave(img, img_path):
-    img = np.squeeze(img)
-    if img.ndim == 3:
-        img = img[:, :, [2, 1, 0]]
-    cv2.imwrite(img_path, img)
+# def imsave(img, img_path):
+#     img = np.squeeze(img)
+#     if img.ndim == 3:
+#         img = img[:, :, [2, 1, 0]]
+#     cv2.imwrite(img_path, img)
 
 
 

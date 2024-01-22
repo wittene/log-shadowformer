@@ -2,7 +2,8 @@ import numpy as np
 import os
 from torch.utils.data import Dataset
 import torch
-from utils import LoadOpts, load_img, load_val_img, load_mask, load_val_mask, Augment_RGB_torch, adjust_target_colors
+from utils import load_img, load_val_img, load_mask, load_val_mask, Augment_RGB_torch, adjust_target_colors
+from options import LoadOptions
 import torch.nn.functional as F
 import random
 import matplotlib.pyplot as plt
@@ -12,7 +13,7 @@ transforms_aug = [method for method in dir(augment) if callable(getattr(augment,
 
 ##################################################################################################
 class DataLoaderTrain(Dataset):
-    def __init__(self, rgb_dir, load_opts: LoadOpts = LoadOpts(), img_opts=None):
+    def __init__(self, rgb_dir, load_opts: LoadOptions = LoadOptions(), img_opts=None):
         super(DataLoaderTrain, self).__init__()
         
         # Get image filenames
@@ -91,7 +92,7 @@ class DataLoaderTrain(Dataset):
 
 ##################################################################################################
 class DataLoaderVal(Dataset):
-    def __init__(self, rgb_dir, load_opts: LoadOpts = LoadOpts()):
+    def __init__(self, rgb_dir, load_opts: LoadOptions = LoadOptions()):
         super(DataLoaderVal, self).__init__()
 
         # Get image filenames

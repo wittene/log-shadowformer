@@ -25,7 +25,6 @@ from torch.optim.lr_scheduler import StepLR
 from timm.utils import NativeScaler
 
 import utils
-from utils import LoadOpts
 from utils.loader import get_training_data, get_validation_data
 
 
@@ -38,18 +37,11 @@ sys.path.append(os.path.join(dir_name,'./auxiliary/'))
 print(dir_name)
 
 ######### parser ###########
-import argparse
-import options
-opt = options.Options().init(argparse.ArgumentParser(description='image denoising')).parse_args()
-print(opt)
+from options import Options
+opt = Options(description='image denoising')
+print(vars(opt))
 
-load_opts = LoadOpts(
-    divisor=opt.img_divisor, 
-    linear_transform=opt.linear_transform, 
-    log_transform=opt.log_transform,
-    target_adjust=opt.target_adjust
-)
-
+load_opts = opt.load_opts()
 img_opts_train = {
     'patch_size': opt.train_ps
 }
@@ -71,13 +63,13 @@ if not os.path.exists(log_dir):
     os.makedirs(log_dir)
 logname = os.path.join(log_dir, opt.run_label+'.txt')
 losslogname = os.path.join(log_dir, opt.run_label+'.json')
-# logname = os.path.join(log_dir, datetime.datetime.now().isoformat()+'.txt')
-# losslogname = os.path.join(log_dir, datetime.datetime.now().isoformat()+'.csv')
 print("Now time is : ", datetime.datetime.now().isoformat())
-result_dir = os.path.join(log_dir, 'results')
 model_dir  = os.path.join(log_dir, 'models')
-utils.mkdir(result_dir)
 utils.mkdir(model_dir)
+if opt.save_residuals:
+    residuals_dir = os.path.join(log_dir, 'residuals')
+    utils.mkdir(residuals_dir)
+
 
 
 # ######### Set Seeds ###########
@@ -186,9 +178,7 @@ val_loader = DataLoader(dataset=val_dataset, batch_size=1, shuffle=False,
 # plt.imsave("linear_load.png", img_np)
 # plt.savefig("png_dist.png")
 
-len_trainset = train_dataset.__len__()
-len_valset = val_dataset.__len__()
-print("Sizeof training set: ", len_trainset,", sizeof validation set: ", len_valset)
+print("Size of training set: ", len(train_dataset),", size of validation set: ", len(val_dataset))
 
 ######### train ###########
 print('===> Start Epoch {} End Epoch {}'.format(start_epoch,opt.nepoch))
@@ -222,7 +212,7 @@ for epoch in range(start_epoch, opt.nepoch + 1):
         if epoch > 5:
             target, input_, mask = utils.MixUp_AUG().aug(target, input_, mask)
         with torch.cuda.amp.autocast():
-            restored = model_restoration(input_, mask) # linear output
+            restored, residual = model_restoration(input_, mask) # linear output
             
             # H-Edit {
             # if opt.log_transform:
@@ -258,7 +248,7 @@ for epoch in range(start_epoch, opt.nepoch + 1):
                     # } H-Edit
                     filenames = data_val[3]
                     with torch.cuda.amp.autocast():
-                        restored = model_restoration(input_, mask)
+                        restored, residual = model_restoration(input_, mask)
                     # H-Edit {
                     # if opt.log_transform:
                     #     restored = torch.clamp(restored,0,MAX_LOG_VAL)
@@ -301,9 +291,18 @@ for epoch in range(start_epoch, opt.nepoch + 1):
                 # } H-Edit
                 filenames = data_val[3]
                 with torch.cuda.amp.autocast():
-                    restored = model_restoration(input_, mask)
+                    restored, residual = model_restoration(input_, mask)
                 restored = torch.clamp(restored,0,1)
                 eval_loss += criterion(restored, target)
+                # E-Edit {
+                # Output residual
+                if opt.save_residuals:
+                    residual[residual < 0] = 0
+                    residual = residual / np.max(residual)
+                    if load_opts.linear_transform or load_opts.log_transform:
+                        residual = utils.apply_srgb(residual)
+                    utils.save_img((residual*255.0).astype(np.ubyte), os.path.join(residuals_dir, filenames[0]))
+                # } E-Edit
             model_restoration.train()
             torch.cuda.empty_cache()
             with open(losslogname,'r') as f:
