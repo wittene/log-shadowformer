@@ -9,7 +9,7 @@ RUN_LABEL = "sRGB"
 PNG_DIR = "/work/SuperResolutionData/ShadowRemovalData/ISTD_Dataset"
 PNG_LOG_DIR = "PNG"
 
-LOG_DIR = f"/work/SuperResolutionData/ShadowRemovalResults/ShadowFormer2/{RUN_LABEL}"
+LOG_DIR = f"/work/SuperResolutionData/ShadowRemovalResults/ShadowFormer2"
 PLINEAR_LOG_DIR = "pseudolinear"
 PLOG_DIR = "pseudolog"
 PSEUDO_NO_NORM = "pseudo_no_normf"

@@ -84,7 +84,7 @@ torch.cuda.manual_seed_all(1234)
 model_restoration = utils.get_arch(opt)
 
 with open(logname,'a') as f:
-    f.write(str(opt)+'\n')
+    f.write(str(vars(opt))+'\n')
     f.write(str(model_restoration)+'\n')
 
 ######### Optimizer ###########
