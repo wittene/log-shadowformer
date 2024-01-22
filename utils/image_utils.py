@@ -179,7 +179,12 @@ def load_val_mask(filepath):
     return resized_img
 
 def save_img(img, filepath):
-    cv2.imwrite(filepath, cv2.cvtColor(img, cv2.COLOR_RGB2BGR))
+    img_copy = img
+    if len(img.shape) == 4:  # try to squeeze batch dimension
+        img_copy = img_copy.squeeze()
+    if img.shape[-1] > 3:    # try to rearrange dims for imwrite
+        img_copy = img_copy.transpose((1, 2, 0))
+    cv2.imwrite(filepath, cv2.cvtColor(img_copy, cv2.COLOR_RGB2BGR))
 
 # def imsave(img, img_path):
 #     img = np.squeeze(img)

@@ -14,7 +14,7 @@ PLINEAR_LOG_DIR = "pseudolinear"
 PLOG_DIR = "pseudolog"
 PSEUDO_NO_NORM = "pseudo_no_normf"
 
-PRETRAINED_WTS_DIR = f"/work/SuperResolutionData/ShadowRemovalResults/ShadowFormer2/{RUN_LABEL}/ShadowFormer_ISTD/models/model_best.pth"
+PRETRAINED_WTS = f"/work/SuperResolutionData/ShadowRemovalResults/ShadowFormer2/{RUN_LABEL}/ShadowFormer_ISTD/models/model_best.pth"
 
 # MAKE SURE TO CHANGE
 # LOG DIR
@@ -47,7 +47,7 @@ class Options():
         parser.add_argument('--train_workers', type=int, default=1, help='train_dataloader workers')
         parser.add_argument('--eval_workers', type=int, default=1, help='eval_dataloader workers')
         parser.add_argument('--dataset', type=str, default='ISTD')
-        parser.add_argument('--pretrain_weights', type=str, default=PRETRAINED_WTS_DIR,
+        parser.add_argument('--pretrain_weights', type=str, default=PRETRAINED_WTS,
                             help='path of pretrained_weights')
         parser.add_argument('--optimizer', type=str, default='adamw', help='optimizer for training')
         parser.add_argument('--lr_initial', type=float, default=0.0002, help='initial learning rate')  # previous default: 0.01
