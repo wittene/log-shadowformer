@@ -12,7 +12,7 @@ def srgb_to_rgb(srgb_img, max_val=1):
   srgb_img[srgb_img< 0.0] = 0
   return srgb_img
 
-def log_to_linear(log_img):
+def log_to_linear(log_img, log_range=65535):
   linear_img = torch.exp(log_img)
-  linear_img = torch.div(linear_img, 65535)
+  linear_img = torch.div(linear_img, log_range)
   return linear_img

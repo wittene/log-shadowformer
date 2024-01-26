@@ -4,6 +4,8 @@ PNG_DIVISOR = 255
 TIFF_DIVISOR = 65535
 EXR_DIVISOR = 1
 
+LOG_RANGE = 65535
+
 RUN_LABEL = "sRGB"
 
 PNG_DIR = "/work/SuperResolutionData/ShadowRemovalData/ISTD_Dataset"
@@ -23,7 +25,7 @@ PRETRAINED_WTS = f"/work/SuperResolutionData/ShadowRemovalResults/ShadowFormer2/
 
 class LoadOptions():
     '''Options when loading an image'''
-    def __init__(self, divisor=255, linear_transform=False, log_transform=False, target_adjust=False):
+    def __init__(self, divisor=255, linear_transform=False, log_transform=False, target_adjust=False, log_range=LOG_RANGE):
         # Normalization constant
         self.divisor = divisor
         # Flag for linear transform
@@ -32,6 +34,8 @@ class LoadOptions():
         self.log_transform = log_transform
         # Flag for target color adjustment
         self.target_adjust = target_adjust
+        # Upper bound for log values
+        self.log_range = log_range
 
 class Options():
     """docstring for Options"""
@@ -93,6 +97,7 @@ class Options():
         parser.add_argument('--img_divisor', type=float, default=PNG_DIVISOR, help='value to scale images to [0, 1]') # Just leave it default.
         parser.add_argument('--linear_transform', action='store_true', default=False, help='Transform to pseudolinear') # get pseudolinear data
         parser.add_argument('--log_transform', action='store_true', default=False, help='Transform to pseudolog') # must call both flags, --linear_transform and --log_transform
+        parser.add_argument('--log_range', type=int, default=LOG_RANGE, help='Upper bound of log value range')
         parser.add_argument('--target_adjust', action='store_true', default=False, help='Adjust target colors to match ground truth')
 
         # parse arguments and copy into self
@@ -104,5 +109,6 @@ class Options():
             divisor=self.img_divisor, 
             linear_transform=self.linear_transform, 
             log_transform=self.log_transform,
-            target_adjust=self.target_adjust
+            target_adjust=self.target_adjust,
+            log_range=self.log_range
         )

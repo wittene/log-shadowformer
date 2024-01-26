@@ -1044,7 +1044,7 @@ class ShadowFormer(nn.Module):
                  norm_layer=nn.LayerNorm, patch_norm=True,
                  use_checkpoint=False, token_projection='linear', token_mlp='leff', se_layer=True,
                 # H-Edit {
-                 dowsample=Downsample, upsample=Upsample, use_log=False, **kwargs):
+                 dowsample=Downsample, upsample=Upsample, use_log=False, log_range=65535, **kwargs):
                 # } H-Edit
         super().__init__()
 
@@ -1064,6 +1064,9 @@ class ShadowFormer(nn.Module):
         # E-Edit {
         # Skip norm layers when using log
         self.norm_layer = norm_layer if not self.use_log else None
+        # } E-Edit
+        # E-Edit {
+        self.log_range = log_range 
         # } E-Edit
 
         # stochastic depth
@@ -1272,7 +1275,7 @@ class ShadowFormer(nn.Module):
         y = output_proj + x
         if self.use_log:
             linear_y = torch.exp(y)
-            linear_y = torch.div(linear_y, 65535)
+            linear_y = torch.div(linear_y, self.log_range)
             return linear_y, output_proj
         return y, output_proj # corrected image, residual added to the shadow image
         # } H-Edit

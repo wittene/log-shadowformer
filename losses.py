@@ -2,12 +2,6 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
-from utils.pseudo_utils import log_to_linear
-
-# def log_to_linear(log_img):
-#   linear_img = torch.exp(log_img)
-#   linear_img = torch.div(linear_img, 65535)
-#   return linear_img
 
 
 def tv_loss(x, beta = 0.5, reg_coeff = 5):
@@ -51,6 +45,11 @@ class CharbonnierLoss(nn.Module):
         super(CharbonnierLoss, self).__init__()
         self.eps = eps
 
+    def forward(self, x, y):
+        diff = x - y
+        loss = torch.mean(torch.sqrt((diff * diff) + (self.eps*self.eps)))
+        return loss
+    
     # def forward(self, x, y):
     #     if self.log_loss:
     #         x = torch.exp(x)
@@ -98,8 +97,3 @@ class CharbonnierLoss(nn.Module):
     #     # loss = torch.sum(torch.sqrt(diff * diff + self.eps))
     #     loss = torch.mean(torch.sqrt((diff * diff) + (self.eps*self.eps)))
     #     return loss
-    
-    def forward(self, x, y):
-        diff = x - y
-        loss = torch.mean(torch.sqrt((diff * diff) + (self.eps*self.eps)))
-        return loss

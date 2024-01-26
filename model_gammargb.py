@@ -973,7 +973,7 @@ class ShadowFormer(nn.Module):
                  drop_rate=0., attn_drop_rate=0., drop_path_rate=0.1,
                  norm_layer=nn.LayerNorm, patch_norm=True,
                  use_checkpoint=False, token_projection='linear', token_mlp='leff', se_layer=True,
-                 dowsample=Downsample, upsample=Upsample, log_input=False, **kwargs):
+                 dowsample=Downsample, upsample=Upsample, log_input=False, log_range=65535, **kwargs):
         super().__init__()
 
         self.num_enc_layers = len(depths)//2
@@ -987,6 +987,7 @@ class ShadowFormer(nn.Module):
         self.reso = img_size
         self.pos_drop = nn.Dropout(p=drop_rate)
         self.log_input = log_input
+        self.log_range = log_range
 
         # stochastic depth
         enc_dpr = [x.item() for x in torch.linspace(0, drop_path_rate, sum(depths[:self.num_enc_layers]))]
@@ -1194,7 +1195,7 @@ class ShadowFormer(nn.Module):
             y = op + x
             # convert back to linear
             y = torch.exp(y)
-            y = torch.div(y, 65535)
+            y = torch.div(y, self.log_range)
         else:
             op = self.output_proj(deconv2, img_size = self.img_size)
             y = op + x

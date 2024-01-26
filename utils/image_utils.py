@@ -6,11 +6,6 @@ from skimage.color import rgb2lab
 import matplotlib.pyplot as plt
 from options import LoadOptions
 
-##################################################
-# CONSTANTS
-
-MAX_LOG_VAL = 65535
-
 
 
 ##################################################
@@ -135,9 +130,9 @@ def load_img(filepath, load_opts: LoadOptions = LoadOptions()):
     if load_opts.linear_transform:
         img = srgb_to_rgb(img)
     if load_opts.linear_transform and load_opts.log_transform:
-        img *= 65535
+        img *= load_opts.log_range
         img[img!=0] = np.log(img[img!=0])
-        img /= np.log(65535)
+        img /= np.log(load_opts.log_range)
     if load_opts.log_transform and not load_opts.linear_transform:
         raise Exception("Cannot perform a log transform without a linear transform first.")
     return img
