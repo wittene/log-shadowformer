@@ -39,6 +39,7 @@ from options import Options
 opt = Options(description='image denoising')
 print(vars(opt))
 
+output_opts = opt.output_opts()
 load_opts = opt.load_opts()
 img_opts_train = {
     'patch_size': opt.train_ps
@@ -55,18 +56,15 @@ torch.backends.cudnn.benchmark = True
 
 
 ######### Logs dir ########### 
-log_dir = os.path.join(opt.save_dir, opt.arch+opt.env)
-print("LOG DIR: ", log_dir)
-if not os.path.exists(log_dir):
-    os.makedirs(log_dir)
-logname = os.path.join(log_dir, opt.run_label+'.txt')
-losslogname = os.path.join(log_dir, opt.run_label+'.json')
+print("LOG DIR: ", output_opts.log_dir)
+if not os.path.exists(output_opts.log_dir):
+    os.makedirs(output_opts.log_dir)
+logname = os.path.join(output_opts.log_dir, output_opts.run_label+'.txt')
+losslogname = os.path.join(output_opts.log_dir, output_opts.run_label+'.json')
 print("Now time is : ", datetime.datetime.now().isoformat())
-model_dir  = os.path.join(log_dir, 'models')
-utils.mkdir(model_dir)
-if opt.save_residuals:
-    residuals_dir = os.path.join(log_dir, 'residuals')
-    utils.mkdir(residuals_dir)
+
+utils.mkdir(output_opts.model_dir)
+utils.mkdir(output_opts.residuals_dir)
 
 
 
@@ -82,8 +80,13 @@ torch.cuda.manual_seed_all(1234)
 model_restoration = utils.get_arch(opt)
 
 with open(logname,'a') as f:
+    if opt.resume:
+        f.write('\n'*4)
     f.write(str(vars(opt))+'\n')
-    f.write(str(model_restoration)+'\n')
+    if opt.resume:
+        f.write('\n'*2)
+    if not opt.resume:
+        f.write(str(model_restoration)+'\n')
 
 ######### Optimizer ###########
 start_epoch = 1
@@ -106,7 +109,7 @@ model_restoration.cuda()
 
 ######### Resume ###########
 if opt.resume:
-    path_chk_rest = opt.pretrain_weights
+    path_chk_rest = output_opts.pretrain_weights
     utils.load_checkpoint(model_restoration,path_chk_rest)
     start_epoch = utils.load_start_epoch(path_chk_rest) + 1
     # correct the log
@@ -164,17 +167,6 @@ train_loader = DataLoader(dataset=train_dataset, batch_size=opt.batch_size, shuf
 val_dataset = get_validation_data(opt.val_dir, load_opts=load_opts)
 val_loader = DataLoader(dataset=val_dataset, batch_size=1, shuffle=False,
         num_workers=opt.eval_workers, pin_memory=False, drop_last=False)
-
-# clean, noisy, mask, clean_filename, noisy_filename = val_dataset[0]
-
-# img_np = np.array(torch.permute(noisy, (1, 2, 0)))
-# print("TYPE:", img_np.dtype)
-# plt.hist(img_np.ravel(), bins=50, density=True)
-# plt.xlabel("pixel values")
-# plt.ylabel("relative frequency")
-# plt.title("distribution of pixels")
-# plt.imsave("linear_load.png", img_np)
-# plt.savefig("png_dist.png")
 
 print("Size of training set: ", len(train_dataset),", size of validation set: ", len(val_dataset))
 
@@ -266,8 +258,8 @@ for epoch in range(start_epoch, opt.nepoch + 1):
                     torch.save({'epoch': epoch,
                                 'state_dict': model_restoration.state_dict(),
                                 'optimizer' : optimizer.state_dict()
-                                }, os.path.join(model_dir,"model_best.pth"))
-                    print(f'SAVED TO: {os.path.join(model_dir, "model_best.pth")}')
+                                }, os.path.join(output_opts.model_dir,"model_best.pth"))
+                    print(f'SAVED TO: {os.path.join(output_opts.model_dir, "model_best.pth")}')
                 print("[Ep %d it %d\t PSNR : %.4f] " % (epoch, i, psnr_val_rgb))
                 with open(logname,'a') as f:
                     f.write("[Ep %d it %d\t PSNR SIDD: %.4f\t] ----  [best_Ep_SIDD %d best_it_SIDD %d Best_PSNR_SIDD %.4f] " \
@@ -296,7 +288,7 @@ for epoch in range(start_epoch, opt.nepoch + 1):
                 # E-Edit {
                 # Output residual
                 if opt.save_residuals and epoch % 10 == 0:
-                    residuals_sub_dir = os.path.join(residuals_dir, f"epoch_{epoch}")
+                    residuals_sub_dir = os.path.join(output_opts.residuals_dir, f"epoch_{epoch}")
                     utils.mkdir(residuals_sub_dir)
                     residual = residual.cpu().detach().numpy()
                     residual[residual < 0] = 0
@@ -333,11 +325,11 @@ for epoch in range(start_epoch, opt.nepoch + 1):
     torch.save({'epoch': epoch, 
                 'state_dict': model_restoration.state_dict(),
                 'optimizer' : optimizer.state_dict()
-                }, os.path.join(model_dir,"model_latest.pth"))   
+                }, os.path.join(output_opts.model_dir,"model_latest.pth"))   
 
     if epoch%opt.checkpoint == 0:
         torch.save({'epoch': epoch, 
                     'state_dict': model_restoration.state_dict(),
                     'optimizer' : optimizer.state_dict()
-                    }, os.path.join(model_dir,"model_epoch_{}.pth".format(epoch))) 
+                    }, os.path.join(output_opts.model_dir,"model_epoch_{}.pth".format(epoch))) 
 print("Now time is : ",datetime.datetime.now().isoformat())

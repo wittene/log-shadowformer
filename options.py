@@ -1,3 +1,4 @@
+import os
 import argparse
 
 PNG_DIVISOR = 255
@@ -5,8 +6,6 @@ TIFF_DIVISOR = 65535
 EXR_DIVISOR = 1
 
 LOG_RANGE = 65535
-
-RUN_LABEL = "sRGB"
 
 PNG_DIR = "/work/SuperResolutionData/ShadowRemovalData/ISTD_Dataset"
 PNG_LOG_DIR = "PNG"
@@ -16,8 +15,6 @@ PLINEAR_LOG_DIR = "pseudolinear"
 PLOG_DIR = "pseudolog"
 PSEUDO_NO_NORM = "pseudo_no_normf"
 
-PRETRAINED_WTS = f"/work/SuperResolutionData/ShadowRemovalResults/ShadowFormer2/{RUN_LABEL}/ShadowFormer_ISTD/models/model_latest.pth"
-
 # MAKE SURE TO CHANGE
 # LOG DIR
 # PRETRAINED WEIGHTS DIR
@@ -25,7 +22,7 @@ PRETRAINED_WTS = f"/work/SuperResolutionData/ShadowRemovalResults/ShadowFormer2/
 
 class LoadOptions():
     '''Options when loading an image'''
-    def __init__(self, divisor=255, linear_transform=False, log_transform=False, target_adjust=False, log_range=LOG_RANGE):
+    def __init__(self, divisor=PNG_DIVISOR, linear_transform=False, log_transform=False, target_adjust=False, log_range=LOG_RANGE):
         # Normalization constant
         self.divisor = divisor
         # Flag for linear transform
@@ -37,22 +34,39 @@ class LoadOptions():
         # Upper bound for log values
         self.log_range = log_range
 
+class OutputOptions():
+    '''Options for program output'''
+    def __init__(self, arch, env, run_label, save_dir=None, pretrain_weights=None) -> None:
+        # Define the run
+        self.arch = arch
+        self.env = env
+        self.run_label = run_label
+        # Directory to save output
+        self.save_dir = save_dir if save_dir else os.path.join(LOG_DIR, self.run_label)
+        # Directory to save output logs
+        self.log_dir = os.path.join(self.save_dir, self.arch+self.env)
+        # Path to model and weights
+        self.model_dir = os.path.join(self.log_dir, 'models')
+        self.pretrain_weights = pretrain_weights if pretrain_weights else os.path.join(self.model_dir, "model_latest.pth")
+        # Path to residuals
+        self.residuals_dir = os.path.join(self.log_dir, 'residuals')
+
 class Options():
     """docstring for Options"""
 
     def __init__(self, description = None):
 
         parser = argparse.ArgumentParser(description=description)
+
+        parser.add_argument('--run_label', type=str, help='label for logs')
         
         # global settings
-        parser.add_argument('--run_label', type=str, default=RUN_LABEL, help='label for logs')
         parser.add_argument('--batch_size', type=int, default=4, help='batch size')
         parser.add_argument('--nepoch', type=int, default=500, help='training epochs')
         parser.add_argument('--train_workers', type=int, default=1, help='train_dataloader workers')
         parser.add_argument('--eval_workers', type=int, default=1, help='eval_dataloader workers')
         parser.add_argument('--dataset', type=str, default='ISTD')
-        parser.add_argument('--pretrain_weights', type=str, default=PRETRAINED_WTS,
-                            help='path of pretrained_weights')
+        parser.add_argument('--pretrain_weights', type=str, default=None, help='path of pretrained_weights, calculated if unset')
         parser.add_argument('--optimizer', type=str, default='adamw', help='optimizer for training')
         parser.add_argument('--lr_initial', type=float, default=0.0002, help='initial learning rate')  # previous default: 0.01
         parser.add_argument('--weight_decay', type=float, default=0.02, help='weight decay') # L2 regularization, previous default: 0.01
@@ -61,7 +75,7 @@ class Options():
         parser.add_argument('--mode', type=str, default='shadow', help='image restoration mode')
 
         # args for saving
-        parser.add_argument('--save_dir', type=str, default=f'{LOG_DIR}/{RUN_LABEL}', help='save dir')
+        parser.add_argument('--save_dir', type=str, default=None, help='save dir, calculated if unset')
         parser.add_argument('--save_images', action='store_true', default=False)
         parser.add_argument('--env', type=str, default='_ISTD', help='env')
         parser.add_argument('--checkpoint', type=int, default=50, help='checkpoint')
@@ -111,4 +125,14 @@ class Options():
             log_transform=self.log_transform,
             target_adjust=self.target_adjust,
             log_range=self.log_range
+        )
+    
+    def output_opts(self):
+        '''Subset of options for saving output'''
+        return OutputOptions(
+            arch=self.arch,
+            env=self.env,
+            run_label=self.run_label,
+            save_dir=self.save_dir,
+            pretrain_weights=self.pretrain_weights
         )
