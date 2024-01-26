@@ -14,7 +14,7 @@ PLINEAR_LOG_DIR = "pseudolinear"
 PLOG_DIR = "pseudolog"
 PSEUDO_NO_NORM = "pseudo_no_normf"
 
-PRETRAINED_WTS = f"/work/SuperResolutionData/ShadowRemovalResults/ShadowFormer2/{RUN_LABEL}/ShadowFormer_ISTD/models/model_best.pth"
+PRETRAINED_WTS = f"/work/SuperResolutionData/ShadowRemovalResults/ShadowFormer2/{RUN_LABEL}/ShadowFormer_ISTD/models/model_latest.pth"
 
 # MAKE SURE TO CHANGE
 # LOG DIR

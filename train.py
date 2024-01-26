@@ -230,19 +230,6 @@ for epoch in range(start_epoch, opt.nepoch + 1):
                 loss, optimizer,parameters=model_restoration.parameters())
         epoch_loss +=loss.item()
 
-
-        # E-Edit {
-        # Output residual
-        # if opt.save_residuals:
-        #     residual = residual[0, :, : , :].cpu().detach().numpy()
-        #     residual[residual < 0] = 0
-        #     residual = residual / np.max(residual)
-        #     if load_opts.linear_transform or load_opts.log_transform:
-        #         residual = utils.apply_srgb(residual)
-        #     utils.save_img((residual*255.0).astype(np.ubyte), os.path.join(residuals_dir, 'sample.png'))
-        # } E-Edit
-
-
         #### Evaluation ####
         if (index+1)%eval_now==0 and i>0:
 
@@ -310,7 +297,7 @@ for epoch in range(start_epoch, opt.nepoch + 1):
                 eval_loss += criterion(restored, target)
                 # E-Edit {
                 # Output residual
-                if opt.save_residuals:
+                if opt.save_residuals and epoch % 10 == 0:
                     residuals_sub_dir = os.path.join(residuals_dir, f"epoch_{epoch}")
                     utils.mkdir(residuals_sub_dir)
                     residual = residual.cpu().detach().numpy()
