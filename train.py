@@ -39,8 +39,8 @@ from options import Options
 opt = Options(description='image denoising')
 print(vars(opt))
 
-output_opts = opt.output_opts()
-load_opts = opt.load_opts()
+output_opts = opt.output_opts
+load_opts = opt.load_opts
 img_opts_train = {
     'patch_size': opt.train_ps
 }

@@ -52,9 +52,20 @@ class OutputOptions():
         self.residuals_dir = os.path.join(self.log_dir, 'residuals')
 
 class Options():
-    """docstring for Options"""
+    """Options for training"""
 
     def __init__(self, description = None):
+        self.__init_parser_args__(description=description)
+        self.__init_load_opts__()
+        self.__init_output_opts__()
+    
+    
+    
+    ##################################################
+    # CONSTRUCTOR HELPERS
+    
+    def __init_parser_args__(self, description = None):
+        '''Initialize argparse and add values to self'''
 
         parser = argparse.ArgumentParser(description=description)
 
@@ -117,22 +128,34 @@ class Options():
         # parse arguments and copy into self
         parser.parse_args(namespace=self)
     
-    def load_opts(self):
+    def __init_load_opts__(self):
         '''Subset of options for loading images'''
-        return LoadOptions(
+        self.load_opts = LoadOptions(
             divisor=self.img_divisor, 
             linear_transform=self.linear_transform, 
             log_transform=self.log_transform,
             target_adjust=self.target_adjust,
             log_range=self.log_range
         )
+        # Ensure consistency
+        self.img_divisor = self.load_opts.img_divisor
+        self.linear_transform = self.load_opts.linear_transform
+        self.log_transform = self.load_opts.log_transform
+        self.target_adjust = self.load_opts.target_adjust
+        self.log_range = self.load_opts.log_range
     
-    def output_opts(self):
+    def __init_output_opts__(self):
         '''Subset of options for saving output'''
-        return OutputOptions(
+        self.output_opts = OutputOptions(
             arch=self.arch,
             env=self.env,
             run_label=self.run_label,
             save_dir=self.save_dir,
             pretrain_weights=self.pretrain_weights
         )
+        # Ensure consistency
+        self.arch=self.output_opts.arch
+        self.env=self.output_opts.env
+        self.run_label=self.output_opts.run_label
+        self.save_dir=self.output_opts.save_dir
+        self.pretrain_weights=self.output_opts.pretrain_weights
