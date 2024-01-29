@@ -24,28 +24,30 @@ from skimage.metrics import peak_signal_noise_ratio as psnr_loss
 from skimage.metrics import structural_similarity as ssim_loss
 from sklearn.metrics import mean_squared_error as mse_loss
 
-args = options.TestOptions(description='RGB denoising evaluation on validation set')
-MAX_LOG_VAL = math.log(args.log_range)
+opts = options.TestOptions(description='RGB denoising evaluation on validation set')
+load_opts = opts.load_opts
+output_opts = opts.output_opts
+MAX_LOG_VAL = math.log(opts.log_range)
 
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-os.environ["CUDA_VISIBLE_DEVICES"] = args.gpus
+os.environ["CUDA_VISIBLE_DEVICES"] = opts.gpu
 
-utils.mkdir(args.result_dir)
-# utils.mkdir(args.output_proj_dir)
+utils.mkdir(output_opts.results_dir)
+utils.mkdir(output_opts.residuals_dir)
 
-test_dataset = get_validation_data(args.input_dir, args.img_divisor, args.linear_transform, args.log_transform)
+test_dataset = get_validation_data(opts.input_dir, opts.img_divisor, opts.linear_transform, opts.log_transform)
 test_loader = DataLoader(dataset=test_dataset, batch_size=1, shuffle=False, num_workers=8, drop_last=False)
 
-model_restoration = utils.get_arch(args)
+model_restoration = utils.get_arch(opts)
 model_restoration = torch.nn.DataParallel(model_restoration)
 
-utils.load_checkpoint(model_restoration, args.weights)
-print("===>Testing using weights: ", args.weights)
+utils.load_checkpoint(model_restoration, opts.weights)
+print("===>Testing using weights: ", opts.weights)
 
 model_restoration.cuda()
 model_restoration.eval()
 
-img_multiple_of = 8 * args.win_size
+img_multiple_of = 8 * opts.win_size
 
 with torch.no_grad():
     psnr_val_rgb = []
@@ -62,7 +64,7 @@ with torch.no_grad():
         rgb_gt = data_test[0].numpy().squeeze().transpose((1, 2, 0))
         rgb_noisy = data_test[1].cuda()
         mask = data_test[2].cuda()
-        if args.log_transform:
+        if opts.log_transform:
             mask *= MAX_LOG_VAL
         filenames = data_test[3]
 
@@ -75,14 +77,14 @@ with torch.no_grad():
         rgb_noisy = F.pad(rgb_noisy, (0, padw, 0, padh), 'reflect')
         mask = F.pad(mask, (0, padw, 0, padh), 'reflect')
 
-        if args.tile is None:
+        if opts.tile is None:
             rgb_restored, _ = model_restoration(rgb_noisy, mask)
         else:
             # test the image tile by tile
             b, c, h, w = rgb_noisy.shape
-            tile = min(args.tile, h, w)
+            tile = min(opts.tile, h, w)
             assert tile % 8 == 0, "tile size should be multiple of 8"
-            tile_overlap = args.tile_overlap
+            tile_overlap = opts.tile_overlap
 
             stride = tile - tile_overlap
             h_idx_list = list(range(0, h - tile, stride)) + [h - tile]
@@ -106,7 +108,7 @@ with torch.no_grad():
         rgb_restored = rgb_restored[:height, :width, :]
         # output_proj = output_proj[:height, :width, :]
 
-        if args.cal_metrics:
+        if opts.cal_metrics:
             bm = torch.where(mask == 0, torch.zeros_like(mask), torch.ones_like(mask))  #binarize mask
             bm = np.expand_dims(bm.cpu().numpy().squeeze(), axis=2)
 
@@ -131,17 +133,17 @@ with torch.no_grad():
             rmse_val_ns.append(rmse_temp_ns)
 
 
-        if args.save_images:
+        if opts.save_images:
             # output_proj[output_proj < 0] = 0
             # output_proj = output_proj / np.max(output_proj)
-            if args.linear_transform or args.log_transform:
+            if opts.linear_transform or opts.log_transform:
                 rgb_restored = apply_srgb(rgb_restored)
                 # output_proj = apply_srgb(output_proj)
-            utils.save_img((rgb_restored*255.0).astype(np.ubyte), os.path.join(args.result_dir, filenames[0]))
+            utils.save_img((rgb_restored*255.0).astype(np.ubyte), os.path.join(opts.result_dir, filenames[0]))
             # utils.save_img((output_proj*255.0).astype(np.ubyte), os.path.join(args.output_proj_dir, filenames[0]))
             # cv2.imwrite(os.path.join(args.output_proj_dir, filenames[0][:-3] + "exr"), cv2.cvtColor(output_proj.astype(np.float32), cv2.COLOR_RGB2BGR))
 
-if args.cal_metrics:
+if opts.cal_metrics:
     psnr_val_rgb = sum(psnr_val_rgb)/len(test_dataset)
     ssim_val_rgb = sum(ssim_val_rgb)/len(test_dataset)
     psnr_val_s = sum(psnr_val_s)/len(test_dataset)

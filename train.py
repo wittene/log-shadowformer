@@ -109,7 +109,7 @@ model_restoration.cuda()
 
 ######### Resume ###########
 if opt.resume:
-    path_chk_rest = output_opts.pretrain_weights
+    path_chk_rest = output_opts.weights_latest
     utils.load_checkpoint(model_restoration,path_chk_rest)
     start_epoch = utils.load_start_epoch(path_chk_rest) + 1
     # correct the log
@@ -258,8 +258,8 @@ for epoch in range(start_epoch, opt.nepoch + 1):
                     torch.save({'epoch': epoch,
                                 'state_dict': model_restoration.state_dict(),
                                 'optimizer' : optimizer.state_dict()
-                                }, os.path.join(output_opts.model_dir,"model_best.pth"))
-                    print(f'SAVED TO: {os.path.join(output_opts.model_dir, "model_best.pth")}')
+                                }, output_opts.weights_best)
+                    print(f'SAVED TO: {output_opts.weights_best}')
                 print("[Ep %d it %d\t PSNR : %.4f] " % (epoch, i, psnr_val_rgb))
                 with open(logname,'a') as f:
                     f.write("[Ep %d it %d\t PSNR SIDD: %.4f\t] ----  [best_Ep_SIDD %d best_it_SIDD %d Best_PSNR_SIDD %.4f] " \

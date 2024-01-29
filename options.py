@@ -15,11 +15,6 @@ PLINEAR_LOG_DIR = "pseudolinear"
 PLOG_DIR = "pseudolog"
 PSEUDO_NO_NORM = "pseudo_no_normf"
 
-# MAKE SURE TO CHANGE
-# LOG DIR
-# PRETRAINED WEIGHTS DIR
-# DATA DIR
-
 class LoadOptions():
     '''Options when loading an image'''
     def __init__(self, divisor=PNG_DIVISOR, linear_transform=False, log_transform=False, target_adjust=False, log_range=LOG_RANGE):
@@ -36,7 +31,7 @@ class LoadOptions():
 
 class OutputOptions():
     '''Options for program output'''
-    def __init__(self, arch, env, run_label, save_dir=None, pretrain_weights=None) -> None:
+    def __init__(self, arch, env, run_label, save_dir=None, weights_latest=None, weights_best=None) -> None:
         # Define the run
         self.arch = arch
         self.env = env
@@ -47,9 +42,12 @@ class OutputOptions():
         self.log_dir = os.path.join(self.save_dir, self.arch+self.env)
         # Path to model and weights
         self.model_dir = os.path.join(self.log_dir, 'models')
-        self.pretrain_weights = pretrain_weights if pretrain_weights else os.path.join(self.model_dir, "model_latest.pth")
+        self.weights_latest = weights_latest if weights_latest else os.path.join(self.model_dir, "model_latest.pth")
+        self.weights_best = weights_best if weights_best else os.path.join(self.model_dir, "model_best.pth")
         # Path to residuals
         self.residuals_dir = os.path.join(self.log_dir, 'residuals')
+        # Path to results
+        self.results_dir = os.path.join(self.log_dir, 'results')
 
 class TrainOptions():
     """Options for training"""
@@ -92,7 +90,7 @@ class TrainOptions():
 
         # args for Uformer
         parser.add_argument('--norm_layer', type=str, default='nn.LayerNorm', help='normalize layer in transformer')
-        parser.add_argument('--embed_dim', type=int, default=32, help='dim of emdeding features')
+        parser.add_argument('--embed_dim', type=int, default=32, help='dim of emdedding features')
         parser.add_argument('--win_size', type=int, default=10, help='window size of self-attention')
         parser.add_argument('--token_projection', type=str, default='linear', help='linear/conv token projection')
         parser.add_argument('--token_mlp', type=str, default='leff', help='ffn/leff token mlp')
@@ -136,7 +134,7 @@ class TrainOptions():
             log_range=self.log_range
         )
         # Ensure consistency
-        self.img_divisor = self.load_opts.img_divisor
+        self.img_divisor = self.load_opts.divisor
         self.linear_transform = self.load_opts.linear_transform
         self.log_transform = self.load_opts.log_transform
         self.target_adjust = self.load_opts.target_adjust
@@ -149,14 +147,15 @@ class TrainOptions():
             env=self.env,
             run_label=self.run_label,
             save_dir=self.save_dir,
-            pretrain_weights=self.pretrain_weights
+            weights_latest=self.pretrain_weights,
+            weights_best=None
         )
         # Ensure consistency
         self.arch=self.output_opts.arch
         self.env=self.output_opts.env
         self.run_label=self.output_opts.run_label
         self.save_dir=self.output_opts.save_dir
-        self.pretrain_weights=self.output_opts.pretrain_weights
+        self.pretrain_weights=self.output_opts.weights_latest
 
 class TestOptions():
     """Options for testing"""
@@ -176,22 +175,25 @@ class TestOptions():
 
         parser.add_argument('--run_label', type=str, help='label for logs')
         
-        parser.add_argument('--input_dir', default='/work/SuperResolutionData/ShadowRemovalData/ISTD_Dataset/test/',
-            type=str, help='Directory of validation images')
-        parser.add_argument('--result_dir', default='/work/SuperResolutionData/ShadowRemovalResults/ShadowFormer2/pretrained_srgb/ISTD/results',
-            type=str, help='Directory for results')
-        parser.add_argument('--output_proj_dir', default='',
-            type=str, help='Directory for output_projections')
-        parser.add_argument('--weights', default='/work/SuperResolutionData/ShadowRemovalResults/ShadowFormer2/pretrained_srgb/ISTD/models/model_best.pth', type=str, help='Path to weights')
-        parser.add_argument('--gpus', default='0', type=str, help='CUDA_VISIBLE_DEVICES')
+        # args for defining run
+        parser.add_argument('--weights', default=None, type=str, help='path of pretrained_weights, calculated if unset')
+        parser.add_argument('--gpu', default='0', type=str, help='CUDA_VISIBLE_DEVICES')
         parser.add_argument('--arch', default='ShadowFormer', type=str, help='arch')
-        parser.add_argument('--batch_size', default=1, type=int, help='Batch size for dataloader')
-        parser.add_argument('--save_images', action='store_true', help='Save denoised images in result directory')
-        parser.add_argument('--cal_metrics', action='store_true', help='Measure denoised images with GT')
-        parser.add_argument('--embed_dim', type=int, default=32, help='number of data loading workers')    
-        parser.add_argument('--win_size', type=int, default=10, help='number of data loading workers')
+        parser.add_argument('--env', type=str, default='_ISTD', help='env')
+        
+        # args for eval
+        parser.add_argument('--input_dir', default=f'{PNG_DIR}/test', type=str, help='directory of validation images')
+        parser.add_argument('--batch_size', default=1, type=int, help='batch size for dataloader')
+        parser.add_argument('--tile', type=int, default=None, help='Tile size (e.g 720). None means testing on the original resolution image')
+        parser.add_argument('--tile_overlap', type=int, default=32, help='Overlapping of different tiles')
+        parser.add_argument('--train_ps', type=int, default=320, help='patch size of training sample')
+
+        # args for UFormer
+        parser.add_argument('--embed_dim', type=int, default=32, help='dim of embedding features')    
+        parser.add_argument('--win_size', type=int, default=10, help='window size of self-attention')
         parser.add_argument('--token_projection', type=str, default='linear', help='linear/conv token projection')
         parser.add_argument('--token_mlp', type=str,default='leff', help='ffn/leff token mlp')
+        
         # args for vit
         parser.add_argument('--vit_dim', type=int, default=320, help='vit hidden_dim')
         parser.add_argument('--vit_depth', type=int, default=12, help='vit depth')
@@ -201,48 +203,51 @@ class TestOptions():
         parser.add_argument('--global_skip', action='store_true', default=False, help='global skip connection')
         parser.add_argument('--local_skip', action='store_true', default=False, help='local skip connection')
         parser.add_argument('--vit_share', action='store_true', default=False, help='share vit module')
-        parser.add_argument('--train_ps', type=int, default=320, help='patch size of training sample')
-        parser.add_argument('--tile', type=int, default=None, help='Tile size (e.g 720). None means testing on the original resolution image')
-        parser.add_argument('--tile_overlap', type=int, default=32, help='Overlapping of different tiles')
 
         # args for linear and log training
         parser.add_argument('--img_divisor', type=float, default=PNG_DIVISOR, help='value to scale images to [0, 1]')
         parser.add_argument('--linear_transform', action='store_true', default=False, help='Transform to pseudolinear')
         parser.add_argument('--log_transform', action='store_true', default=False, help='Transform to pseudolog')
         parser.add_argument('--log_range', type=int, default=LOG_RANGE, help='Upper bound of values prior to log transform')
+        parser.add_argument('--target_adjust', action='store_true', default=False, help='Adjust target colors to match ground truth')
 
+        # args for output
+        parser.add_argument('--save_images', action='store_true', help='Save denoised images in result directory')
+        parser.add_argument('--save_residuals', action='store_true', default=False, help='Save residuals')
+        parser.add_argument('--cal_metrics', action='store_true', help='Measure denoised images with GT')
 
         # parse arguments and copy into self
         parser.parse_args(namespace=self)
     
-    # def __init_load_opts__(self):
-    #     '''Subset of options for loading images'''
-    #     self.load_opts = LoadOptions(
-    #         divisor=self.img_divisor, 
-    #         linear_transform=self.linear_transform, 
-    #         log_transform=self.log_transform,
-    #         target_adjust=self.target_adjust,
-    #         log_range=self.log_range
-    #     )
-    #     # Ensure consistency
-    #     self.img_divisor = self.load_opts.img_divisor
-    #     self.linear_transform = self.load_opts.linear_transform
-    #     self.log_transform = self.load_opts.log_transform
-    #     self.target_adjust = self.load_opts.target_adjust
-    #     self.log_range = self.load_opts.log_range
+    def __init_load_opts__(self):
+        '''Subset of options for loading images'''
+        self.load_opts = LoadOptions(
+            divisor=self.img_divisor, 
+            linear_transform=self.linear_transform, 
+            log_transform=self.log_transform,
+            target_adjust=self.target_adjust,
+            log_range=self.log_range
+        )
+        # Ensure consistency
+        self.img_divisor = self.load_opts.divisor
+        self.linear_transform = self.load_opts.linear_transform
+        self.log_transform = self.load_opts.log_transform
+        self.target_adjust = self.load_opts.target_adjust
+        self.log_range = self.load_opts.log_range
     
-    # def __init_output_opts__(self):
-    #     '''Subset of options for saving output'''
-    #     self.output_opts = OutputOptions(
-    #         arch=self.arch,
-    #         env=self.env,
-    #         run_label=self.run_label,
-    #         save_dir=self.save_dir,
-    #         pretrain_weights=self.pretrain_weights
-    #     )
-    #     # Ensure consistency
-    #     self.arch=self.output_opts.arch
-    #     self.env=self.output_opts.env
-    #     self.run_label=self.output_opts.run_label
-    #     self.save_dir=self.output_opts.save_dir
-    #     self.pretrain_weights=self.output_opts.pretrain_weights
+    def __init_output_opts__(self):
+        '''Subset of options for saving output'''
+        self.output_opts = OutputOptions(
+            arch=self.arch,
+            env=self.env,
+            run_label=self.run_label,
+            save_dir=self.save_dir,
+            weights_latest=None,
+            weights_best=self.weights
+        )
+        # Ensure consistency
+        self.arch=self.output_opts.arch
+        self.env=self.output_opts.env
+        self.run_label=self.output_opts.run_label
+        self.save_dir=self.output_opts.save_dir
+        self.weights=self.output_opts.weights_best
