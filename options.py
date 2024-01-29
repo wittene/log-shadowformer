@@ -241,7 +241,7 @@ class TestOptions():
             arch=self.arch,
             env=self.env,
             run_label=self.run_label,
-            save_dir=self.save_dir,
+            save_dir=None,
             weights_latest=None,
             weights_best=self.weights
         )

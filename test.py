@@ -34,8 +34,10 @@ os.environ["CUDA_VISIBLE_DEVICES"] = opts.gpu
 
 utils.mkdir(output_opts.results_dir)
 utils.mkdir(output_opts.residuals_dir)
+residuals_eval_dir = os.path.join(output_opts.residuals_dir, "eval_best")
+utils.mkdir(residuals_eval_dir)
 
-test_dataset = get_validation_data(opts.input_dir, opts.img_divisor, opts.linear_transform, opts.log_transform)
+test_dataset = get_validation_data(rgb_dir=opts.input_dir, load_opts=load_opts)
 test_loader = DataLoader(dataset=test_dataset, batch_size=1, shuffle=False, num_workers=8, drop_last=False)
 
 model_restoration = utils.get_arch(opts)
@@ -78,8 +80,10 @@ with torch.no_grad():
         mask = F.pad(mask, (0, padw, 0, padh), 'reflect')
 
         if opts.tile is None:
-            rgb_restored, _ = model_restoration(rgb_noisy, mask)
+            rgb_restored, residual = model_restoration(rgb_noisy, mask)
         else:
+            # residual image not currently supported
+            residual = None
             # test the image tile by tile
             b, c, h, w = rgb_noisy.shape
             tile = min(opts.tile, h, w)
@@ -106,7 +110,6 @@ with torch.no_grad():
 
         # Unpad the output
         rgb_restored = rgb_restored[:height, :width, :]
-        # output_proj = output_proj[:height, :width, :]
 
         if opts.cal_metrics:
             bm = torch.where(mask == 0, torch.zeros_like(mask), torch.ones_like(mask))  #binarize mask
@@ -134,14 +137,18 @@ with torch.no_grad():
 
 
         if opts.save_images:
-            # output_proj[output_proj < 0] = 0
-            # output_proj = output_proj / np.max(output_proj)
-            if opts.linear_transform or opts.log_transform:
+            if load_opts.linear_transform or load_opts.log_transform:
                 rgb_restored = apply_srgb(rgb_restored)
-                # output_proj = apply_srgb(output_proj)
-            utils.save_img((rgb_restored*255.0).astype(np.ubyte), os.path.join(opts.result_dir, filenames[0]))
-            # utils.save_img((output_proj*255.0).astype(np.ubyte), os.path.join(args.output_proj_dir, filenames[0]))
-            # cv2.imwrite(os.path.join(args.output_proj_dir, filenames[0][:-3] + "exr"), cv2.cvtColor(output_proj.astype(np.float32), cv2.COLOR_RGB2BGR))
+            utils.save_img((rgb_restored*255.0).astype(np.ubyte), os.path.join(output_opts.results_dir, filenames[0]))
+        
+        if opts.save_residuals:
+            residual = residual[:height, :width, :]
+            residual = residual.cpu().detach().numpy()
+            residual[residual < 0] = 0
+            residual = residual / np.max(residual)
+            if load_opts.linear_transform or load_opts.log_transform:
+                residual = utils.apply_srgb(residual)
+            utils.save_img((residual*255.0).astype(np.ubyte), os.path.join(residuals_eval_dir, filenames[0]))
 
 if opts.cal_metrics:
     psnr_val_rgb = sum(psnr_val_rgb)/len(test_dataset)
