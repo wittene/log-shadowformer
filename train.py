@@ -35,8 +35,8 @@ sys.path.append(os.path.join(dir_name,'./auxiliary/'))
 print(dir_name)
 
 ######### parser ###########
-from options import Options
-opt = Options(description='image denoising')
+from options import TrainOptions
+opt = TrainOptions(description='image denoising')
 print(vars(opt))
 
 output_opts = opt.output_opts

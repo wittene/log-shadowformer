@@ -1,9 +1,9 @@
 
 import numpy as np
-import os,sys
-import argparse
+import os
+import math
 from tqdm import tqdm
-from einops import rearrange, repeat
+
 import cv2
 os.environ["OPENCV_IO_ENABLE_OPENEXR"]="1"
 
@@ -13,12 +13,9 @@ from torch.utils.data import DataLoader
 import torch.nn.functional as F
 # from ptflops import get_model_complexity_info
 
-import scipy.io as sio
-from utils.loader import get_validation_data
+import options
 import utils
-import cv2
-from model import UNet
-
+from utils.loader import get_validation_data
 from utils.pseudo_utils import *
 from utils.image_utils import apply_srgb
 
@@ -27,49 +24,8 @@ from skimage.metrics import peak_signal_noise_ratio as psnr_loss
 from skimage.metrics import structural_similarity as ssim_loss
 from sklearn.metrics import mean_squared_error as mse_loss
 
-PNG_DIVISOR = 255
-MAX_LOG_VAL = 11.0903
-
-parser = argparse.ArgumentParser(description='RGB denoising evaluation on the validation set of SIDD')
-parser.add_argument('--input_dir', default='/work/SuperResolutionData/ShadowRemovalData/ISTD_Dataset/test/',
-    type=str, help='Directory of validation images')
-parser.add_argument('--result_dir', default='/work/SuperResolutionData/ShadowRemovalResults/ShadowFormer2/pretrained_srgb/ISTD/results',
-    type=str, help='Directory for results')
-parser.add_argument('--output_proj_dir', default='',
-    type=str, help='Directory for output_projections')
-parser.add_argument('--weights', default='/work/SuperResolutionData/ShadowRemovalResults/ShadowFormer2/pretrained_srgb/ISTD/models/model_best.pth', type=str, help='Path to weights')
-parser.add_argument('--gpus', default='0', type=str, help='CUDA_VISIBLE_DEVICES')
-parser.add_argument('--arch', default='ShadowFormer', type=str, help='arch')
-parser.add_argument('--batch_size', default=1, type=int, help='Batch size for dataloader')
-parser.add_argument('--save_images', action='store_true', help='Save denoised images in result directory')
-parser.add_argument('--cal_metrics', action='store_true', help='Measure denoised images with GT')
-parser.add_argument('--embed_dim', type=int, default=32, help='number of data loading workers')    
-parser.add_argument('--win_size', type=int, default=10, help='number of data loading workers')
-parser.add_argument('--token_projection', type=str, default='linear', help='linear/conv token projection')
-parser.add_argument('--token_mlp', type=str,default='leff', help='ffn/leff token mlp')
-# args for vit
-parser.add_argument('--vit_dim', type=int, default=256, help='vit hidden_dim')
-parser.add_argument('--vit_depth', type=int, default=12, help='vit depth')
-parser.add_argument('--vit_nheads', type=int, default=8, help='vit hidden_dim')
-parser.add_argument('--vit_mlp_dim', type=int, default=512, help='vit mlp_dim')
-parser.add_argument('--vit_patch_size', type=int, default=16, help='vit patch_size')
-parser.add_argument('--global_skip', action='store_true', default=False, help='global skip connection')
-parser.add_argument('--local_skip', action='store_true', default=False, help='local skip connection')
-parser.add_argument('--vit_share', action='store_true', default=False, help='share vit module')
-parser.add_argument('--train_ps', type=int, default=320, help='patch size of training sample')
-parser.add_argument('--tile', type=int, default=None, help='Tile size (e.g 720). None means testing on the original resolution image')
-parser.add_argument('--tile_overlap', type=int, default=32, help='Overlapping of different tiles')
-
-# added by me
-parser.add_argument('--img_divisor', type=float, default=PNG_DIVISOR, help='value to scale images to [0, 1]')
-parser.add_argument('--linear_transform', action='store_true', default=False, help='Transform to pseudolinear')
-parser.add_argument('--log_transform', action='store_true', default=False, help='Transform to pseudolog')
-
-
-args = parser.parse_args()
-
-
-
+args = options.TestOptions(description='RGB denoising evaluation on validation set')
+MAX_LOG_VAL = math.log(args.log_range)
 
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
 os.environ["CUDA_VISIBLE_DEVICES"] = args.gpus

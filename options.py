@@ -51,16 +51,14 @@ class OutputOptions():
         # Path to residuals
         self.residuals_dir = os.path.join(self.log_dir, 'residuals')
 
-class Options():
+class TrainOptions():
     """Options for training"""
 
     def __init__(self, description = None):
         self.__init_parser_args__(description=description)
         self.__init_load_opts__()
         self.__init_output_opts__()
-    
-    
-    
+
     ##################################################
     # CONSTRUCTOR HELPERS
     
@@ -114,7 +112,7 @@ class Options():
         parser.add_argument('--train_ps', type=int, default=320, help='patch size of training sample')
         parser.add_argument('--resume', action='store_true', default=False)
         parser.add_argument('--train_dir', type=str, default=f'{PNG_DIR}/train', help='dir of train data')
-        parser.add_argument('--val_dir', type=str, default=f'{PNG_DIR}/test', help='dir of train data')
+        parser.add_argument('--val_dir', type=str, default=f'{PNG_DIR}/test', help='dir of validation data')
         parser.add_argument('--warmup', action='store_true', default=True, help='warmup')
         parser.add_argument('--warmup_epochs', type=int, default=3, help='epochs for warmup')
 
@@ -122,7 +120,7 @@ class Options():
         parser.add_argument('--img_divisor', type=float, default=PNG_DIVISOR, help='value to scale images to [0, 1]') # Just leave it default.
         parser.add_argument('--linear_transform', action='store_true', default=False, help='Transform to pseudolinear') # get pseudolinear data
         parser.add_argument('--log_transform', action='store_true', default=False, help='Transform to pseudolog') # must call both flags, --linear_transform and --log_transform
-        parser.add_argument('--log_range', type=int, default=LOG_RANGE, help='Upper bound of log value range')
+        parser.add_argument('--log_range', type=int, default=LOG_RANGE, help='Upper bound of values prior to log transform')
         parser.add_argument('--target_adjust', action='store_true', default=False, help='Adjust target colors to match ground truth')
 
         # parse arguments and copy into self
@@ -159,3 +157,92 @@ class Options():
         self.run_label=self.output_opts.run_label
         self.save_dir=self.output_opts.save_dir
         self.pretrain_weights=self.output_opts.pretrain_weights
+
+class TestOptions():
+    """Options for testing"""
+
+    def __init__(self, description = None):
+        self.__init_parser_args__(description=description)
+        self.__init_load_opts__()
+        self.__init_output_opts__()
+
+    ##################################################
+    # CONSTRUCTOR HELPERS
+    
+    def __init_parser_args__(self, description = None):
+        '''Initialize argparse and add values to self'''
+
+        parser = argparse.ArgumentParser(description=description)
+
+        parser.add_argument('--run_label', type=str, help='label for logs')
+        
+        parser.add_argument('--input_dir', default='/work/SuperResolutionData/ShadowRemovalData/ISTD_Dataset/test/',
+            type=str, help='Directory of validation images')
+        parser.add_argument('--result_dir', default='/work/SuperResolutionData/ShadowRemovalResults/ShadowFormer2/pretrained_srgb/ISTD/results',
+            type=str, help='Directory for results')
+        parser.add_argument('--output_proj_dir', default='',
+            type=str, help='Directory for output_projections')
+        parser.add_argument('--weights', default='/work/SuperResolutionData/ShadowRemovalResults/ShadowFormer2/pretrained_srgb/ISTD/models/model_best.pth', type=str, help='Path to weights')
+        parser.add_argument('--gpus', default='0', type=str, help='CUDA_VISIBLE_DEVICES')
+        parser.add_argument('--arch', default='ShadowFormer', type=str, help='arch')
+        parser.add_argument('--batch_size', default=1, type=int, help='Batch size for dataloader')
+        parser.add_argument('--save_images', action='store_true', help='Save denoised images in result directory')
+        parser.add_argument('--cal_metrics', action='store_true', help='Measure denoised images with GT')
+        parser.add_argument('--embed_dim', type=int, default=32, help='number of data loading workers')    
+        parser.add_argument('--win_size', type=int, default=10, help='number of data loading workers')
+        parser.add_argument('--token_projection', type=str, default='linear', help='linear/conv token projection')
+        parser.add_argument('--token_mlp', type=str,default='leff', help='ffn/leff token mlp')
+        # args for vit
+        parser.add_argument('--vit_dim', type=int, default=320, help='vit hidden_dim')
+        parser.add_argument('--vit_depth', type=int, default=12, help='vit depth')
+        parser.add_argument('--vit_nheads', type=int, default=8, help='vit hidden_dim')
+        parser.add_argument('--vit_mlp_dim', type=int, default=512, help='vit mlp_dim')
+        parser.add_argument('--vit_patch_size', type=int, default=16, help='vit patch_size')
+        parser.add_argument('--global_skip', action='store_true', default=False, help='global skip connection')
+        parser.add_argument('--local_skip', action='store_true', default=False, help='local skip connection')
+        parser.add_argument('--vit_share', action='store_true', default=False, help='share vit module')
+        parser.add_argument('--train_ps', type=int, default=320, help='patch size of training sample')
+        parser.add_argument('--tile', type=int, default=None, help='Tile size (e.g 720). None means testing on the original resolution image')
+        parser.add_argument('--tile_overlap', type=int, default=32, help='Overlapping of different tiles')
+
+        # args for linear and log training
+        parser.add_argument('--img_divisor', type=float, default=PNG_DIVISOR, help='value to scale images to [0, 1]')
+        parser.add_argument('--linear_transform', action='store_true', default=False, help='Transform to pseudolinear')
+        parser.add_argument('--log_transform', action='store_true', default=False, help='Transform to pseudolog')
+        parser.add_argument('--log_range', type=int, default=LOG_RANGE, help='Upper bound of values prior to log transform')
+
+
+        # parse arguments and copy into self
+        parser.parse_args(namespace=self)
+    
+    # def __init_load_opts__(self):
+    #     '''Subset of options for loading images'''
+    #     self.load_opts = LoadOptions(
+    #         divisor=self.img_divisor, 
+    #         linear_transform=self.linear_transform, 
+    #         log_transform=self.log_transform,
+    #         target_adjust=self.target_adjust,
+    #         log_range=self.log_range
+    #     )
+    #     # Ensure consistency
+    #     self.img_divisor = self.load_opts.img_divisor
+    #     self.linear_transform = self.load_opts.linear_transform
+    #     self.log_transform = self.load_opts.log_transform
+    #     self.target_adjust = self.load_opts.target_adjust
+    #     self.log_range = self.load_opts.log_range
+    
+    # def __init_output_opts__(self):
+    #     '''Subset of options for saving output'''
+    #     self.output_opts = OutputOptions(
+    #         arch=self.arch,
+    #         env=self.env,
+    #         run_label=self.run_label,
+    #         save_dir=self.save_dir,
+    #         pretrain_weights=self.pretrain_weights
+    #     )
+    #     # Ensure consistency
+    #     self.arch=self.output_opts.arch
+    #     self.env=self.output_opts.env
+    #     self.run_label=self.output_opts.run_label
+    #     self.save_dir=self.output_opts.save_dir
+    #     self.pretrain_weights=self.output_opts.pretrain_weights
