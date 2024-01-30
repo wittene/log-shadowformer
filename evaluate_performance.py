@@ -1,6 +1,11 @@
 import json
 import numpy as np
+import matplotlib
 import matplotlib.pyplot as plt
+import argparse
+
+matplotlib.rc('xtick', labelsize=7) 
+matplotlib.rc('ytick', labelsize=7)
 
 def get_log(log_path:str)->dict:
     with open(log_path, 'r') as f:
@@ -31,18 +36,14 @@ def get_last_completed_epoch(d):
     epochs = [int(k) for k in d["train"].keys()]
     return max(epochs)
 
-# def get_last_completed_epoch(d):
-#     epochs = [int(k) for k in d.keys()]
-#     return max(epochs)
-
 def graph_losses(train_values, val_values, save_path="loss.png", title="MSE Loss for ShadowFormer"):
     x = [k for k, _ in train_values]
     y = [v for _, v in train_values]
-    xTicks = [t for t in range(0, len(x), 5)]
+    xTicks = [t-1 for t in range(0, len(x)+1, 25)]
     plt.plot(x, y, label="train")
     xVal = [k for k, _ in val_values]
     yVal = [v for _, v in val_values]
-    plt.scatter(xVal, yVal, color="red", label="val")
+    plt.scatter(xVal, yVal, color="red", label="val", s=7)
     plt.xticks(xTicks)
     plt.legend()
     plt.xlabel("Epoch")
@@ -51,14 +52,19 @@ def graph_losses(train_values, val_values, save_path="loss.png", title="MSE Loss
     plt.savefig(save_path)
 
 if __name__=="__main__":
-    title = "Pseudolog L1 Loss for ShadowFormer"
-    log_path="/work/SuperResolutionData/ShadowRemovalResults/ShadowFormer/gamma_rgb1/ShadowFormer_istd/gamma_rgb1.json"
-    chart_save_path="results/train_curves/gamma_rgb.png"
-    #log_path = "/work/SuperResolutionData/ShadowRemovalResults/ShadowFormer/PNG/ShadowFormer_istd/control.json"
-    #log_path = "/work/SuperResolutionData/ShadowRemovalResults/ShadowFormer/ShadowFormer_pseudolog/ShadowFormer_istd/pseudolog3.json"
+
+    parser = argparse.ArgumentParser(description='Plot training loss')
+    parser.add_argument('--run_label', type=str, help='Label of training run to evaluate')
+    parser.add_argument('--title',     type=str, default='Training Loss for ShadowFormer', help='Title for performance plot')
+    opt = parser.parse_args()
+    
+    save_path = f"/work/SuperResolutionData/ShadowRemovalResults/ShadowFormer2/{opt.run_label}/ShadowFormer_ISTD/"
+    log_path = save_path + f"{opt.run_label}.json"
+    chart_save_path = save_path + f"train_curves-{opt.run_label}.png"
+    
     d = get_log(log_path)
     train_values = get_log_train_values(d)
     val_values = get_log_val_values(d)
     print("Epochs completed: ", get_last_completed_epoch(d))
     print("Minimum loss and minimum epoch: ", get_min_with_loc(train_values))
-    graph_losses(train_values, val_values, save_path=chart_save_path, title=title)
+    graph_losses(train_values, val_values, save_path=chart_save_path, title=opt.title)
