@@ -1044,7 +1044,7 @@ class ShadowFormer(nn.Module):
                  norm_layer=nn.LayerNorm, patch_norm=True,
                  use_checkpoint=False, token_projection='linear', token_mlp='leff', se_layer=True,
                 # H-Edit {
-                 dowsample=Downsample, upsample=Upsample, use_log=False, log_range=65535, **kwargs):
+                 downsample=Downsample, upsample=Upsample, use_log=False, log_range=65535, **kwargs):
                 # } H-Edit
         super().__init__()
 
@@ -1098,7 +1098,7 @@ class ShadowFormer(nn.Module):
                 # } E-Edit
                 use_checkpoint=use_checkpoint,
                 token_projection=token_projection,token_mlp=token_mlp,se_layer=se_layer,cab=True)
-        self.dowsample_0 = dowsample(embed_dim, embed_dim*2)
+        self.downsample_0 = downsample(embed_dim, embed_dim*2)
         self.encoderlayer_1 = BasicShadowFormer(dim=embed_dim*2,
                 output_dim=embed_dim*2,
                 input_resolution=(img_size // 2,
@@ -1115,7 +1115,7 @@ class ShadowFormer(nn.Module):
                 # } E-Edit
                 use_checkpoint=use_checkpoint,
                 token_projection=token_projection,token_mlp=token_mlp,se_layer=se_layer, cab=True)
-        self.dowsample_1 = dowsample(embed_dim*2, embed_dim*4)
+        self.downsample_1 = downsample(embed_dim*2, embed_dim*4)
         self.encoderlayer_2 = BasicShadowFormer(dim=embed_dim*4,
                 output_dim=embed_dim*4,
                 input_resolution=(img_size // (2 ** 2),
@@ -1132,7 +1132,7 @@ class ShadowFormer(nn.Module):
                 # } E-Edit
                 use_checkpoint=use_checkpoint,
                 token_projection=token_projection,token_mlp=token_mlp,se_layer=se_layer)
-        self.dowsample_2 = dowsample(embed_dim*4, embed_dim*8)
+        self.downsample_2 = downsample(embed_dim*4, embed_dim*8)
 
         # Bottleneck
         self.conv = BasicShadowFormer(dim=embed_dim*8,
@@ -1235,17 +1235,17 @@ class ShadowFormer(nn.Module):
 
         #Encoder
         conv0 = self.encoderlayer_0(y, xm, mask=mask, img_size = self.img_size)
-        pool0 = self.dowsample_0(conv0, img_size = self.img_size)
+        pool0 = self.downsample_0(conv0, img_size = self.img_size)
         m = nn.MaxPool2d(2)
         xm1 = m(xm)
         self.img_size = (int(self.img_size[0]/2), int(self.img_size[1]/2))
         conv1 = self.encoderlayer_1(pool0, xm1, mask=mask, img_size = self.img_size)
-        pool1 = self.dowsample_1(conv1, img_size = self.img_size)
+        pool1 = self.downsample_1(conv1, img_size = self.img_size)
         m = nn.MaxPool2d(2)
         xm2 = m(xm1)
         self.img_size = (int(self.img_size[0] / 2), int(self.img_size[1] / 2))
         conv2 = self.encoderlayer_2(pool1, xm2, mask=mask, img_size = self.img_size)
-        pool2 = self.dowsample_2(conv2, img_size = self.img_size)
+        pool2 = self.downsample_2(conv2, img_size = self.img_size)
         self.img_size = (int(self.img_size[0] / 2), int(self.img_size[1] / 2))
         m = nn.MaxPool2d(2)
         xm3 = m(xm2)

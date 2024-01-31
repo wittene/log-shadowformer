@@ -61,7 +61,31 @@ def get_arch(opt):
     if arch == 'UNet':
         model_restoration = UNet(dim=opt.embed_dim)
     elif arch == 'ShadowFormer':
-        model_restoration = ShadowFormer(img_size=opt.train_ps,embed_dim=opt.embed_dim,win_size=opt.win_size,token_projection=opt.token_projection,token_mlp=opt.token_mlp, use_log=opt.log_transform, log_range=opt.log_range)
+        model_restoration = ShadowFormer(
+            img_size = opt.train_ps,
+            embed_dim = opt.embed_dim,
+            win_size = opt.win_size,
+            token_projection = opt.token_projection,
+            token_mlp = opt.token_mlp,
+            use_log = opt.log_transform,
+            log_range = opt.log_range,
+            # DEFAULT PARAMS:
+            # in_chans: int = 3,
+            # depths: Any = [2, 2, 2, 2, 2, 2, 2, 2, 2],
+            # num_heads: Any = [1, 2, 4, 8, 16, 16, 8, 4, 2],
+            # mlp_ratio: float = 4,
+            # qkv_bias: bool = True,
+            # qk_scale: Any | None = None,
+            # drop_rate: float = 0,
+            # attn_drop_rate: float = 0,
+            # drop_path_rate: float = 0.1,
+            # norm_layer: Any = nn.LayerNorm,
+            # patch_norm: bool = True,
+            # use_checkpoint: bool = False,
+            # se_layer: bool = True,
+            # downsample: type[Downsample] = Downsample,
+            # upsample: type[Upsample] = Upsample,
+        )
     else:
         raise Exception("Arch error!")
 
