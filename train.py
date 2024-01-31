@@ -267,7 +267,7 @@ for epoch in range(start_epoch, opt.nepoch + 1):
                 model_restoration.train()
                 torch.cuda.empty_cache()
     eval_loss = 0
-    if epoch != 0 and (epoch % 3 == 0 or epoch == opt.nepoch):
+    if epoch != 0 and (epoch < 10 or epoch % 3 == 0 or epoch == opt.nepoch):
         # calculate validation loss after every epoch of training
         with torch.no_grad():
             eval_loss = 0
@@ -287,7 +287,7 @@ for epoch in range(start_epoch, opt.nepoch + 1):
                 eval_loss += criterion(restored, target)
                 # E-Edit {
                 # Output residual
-                if opt.save_residuals and (epoch % 10 == 0 or epoch == opt.nepoch):
+                if opt.save_residuals and (epoch < 10 or epoch % 10 == 0 or epoch == opt.nepoch):
                     residuals_sub_dir = os.path.join(output_opts.residuals_dir, f"epoch_{epoch}")
                     utils.mkdir(residuals_sub_dir)
                     residual = residual.cpu().detach().numpy()
