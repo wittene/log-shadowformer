@@ -76,11 +76,6 @@ def tensor2uint(img):
         img = np.transpose(img, (1, 2, 0))
     return np.uint8((img*255.0).round())
 
-def dilate_mask(mask):
-    kernel = np.ones((8,8), np.uint8)
-    dilation = cv2.dilate(mask, kernel, iterations=1)
-    return dilation
-
 # def yCbCr2rgb(input_im):
 #     im_flat = input_im.contiguous().view(-1, 3).float()
 #     mat = torch.tensor([[1.164, 1.164, 1.164],

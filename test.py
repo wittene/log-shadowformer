@@ -1,7 +1,6 @@
 
 import numpy as np
 import os
-import math
 from tqdm import tqdm
 
 import cv2
@@ -27,7 +26,7 @@ from sklearn.metrics import mean_squared_error as mse_loss
 opts = options.TestOptions(description='RGB denoising evaluation on validation set')
 load_opts = opts.load_opts
 output_opts = opts.output_opts
-MAX_LOG_VAL = math.log(opts.log_range)
+MAX_LOG_VAL = np.log(opts.log_range)
 
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
 os.environ["CUDA_VISIBLE_DEVICES"] = opts.gpu

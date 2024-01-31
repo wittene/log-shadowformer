@@ -6,6 +6,8 @@ import torch.nn.functional as F
 from einops import rearrange, repeat
 import math
 
+from utils import log_to_linear
+
 ###########################################################################
 # CONSTANTS
 
@@ -1274,8 +1276,9 @@ class ShadowFormer(nn.Module):
         output_proj = self.output_proj(deconv2, img_size = self.img_size)
         y = output_proj + x
         if self.use_log:
-            linear_y = torch.exp(y)
-            linear_y = torch.div(linear_y, self.log_range)
-            return linear_y, output_proj
+            # linear_y = torch.exp(y)
+            # linear_y = torch.div(linear_y, self.log_range)
+            # always return a linear image
+            return log_to_linear(y), output_proj
         return y, output_proj # corrected image, residual added to the shadow image
         # } H-Edit

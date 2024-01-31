@@ -1,8 +1,6 @@
 import torch
 import numpy as np
-import os
-
-from .image_utils import dilate_mask
+import cv2
 
 ### rotate and flip
 class Augment_RGB_torch:
@@ -56,6 +54,11 @@ class MixUp_AUG:
 
 
 ### adjust shadow/no-shadow images
+
+def dilate_mask(mask):
+    kernel = np.ones((8,8), np.uint8)
+    dilation = cv2.dilate(mask, kernel, iterations=1)
+    return dilation
     
 def expand_to_three_channel(two_channel):
     three_channel = np.array([np.zeros_like(two_channel), 
@@ -66,13 +69,22 @@ def expand_to_three_channel(two_channel):
     three_channel[2,:,:] = two_channel
     return three_channel
 
-def adjust_target_colors(noshadowimg, shadowimg, mask):
+def rgb_mean(img, mask=None):
+    '''Computes the mean value for each RGB channel separately'''
+    r, g, b = np.split(img, 3, axis=2)
+    if mask is not None:
+        r = r[mask != 1]
+        g = g[mask != 1]
+        b = b[mask != 1]
+    r_mean = np.mean(r)
+    g_mean = np.mean(g)
+    b_mean = np.mean(b)
+    return np.array([r_mean, g_mean, b_mean])
+
+def adjust_target_colors(clean, noisy, mask):
     dilated_mask = dilate_mask(mask)
-    noshadow_avg = np.mean(noshadowimg[dilated_mask != 1])
-    shadow_avg = np.mean(shadowimg[dilated_mask != 1])
-    dmask = expand_to_three_channel(dilated_mask)
-    dmask = np.moveaxis(dmask, 0, 2)
-    gamma = noshadow_avg / shadow_avg
-    noshadow_adjusted = noshadowimg * gamma
-    noshadow_adjusted[noshadow_adjusted > 1] = 1
-    return noshadow_adjusted
+    clean_mean = rgb_mean(clean, mask=dilated_mask)
+    noisy_mean = rgb_mean(noisy, mask=dilated_mask)
+    gamma = noisy_mean / clean_mean
+    clean_adjusted = np.clip(clean * gamma, 0, 1)
+    return clean_adjusted
