@@ -2,7 +2,7 @@ import numpy as np
 import os
 from torch.utils.data import Dataset
 import torch
-from utils import load_img, load_val_img, load_mask, load_val_mask, Augment_RGB_torch, adjust_target_colors
+from utils import load_img, load_mask, load_val_mask, Augment_RGB_torch, adjust_target_colors
 from options import LoadOptions
 import torch.nn.functional as F
 import random
@@ -120,23 +120,10 @@ class DataLoaderVal(Dataset):
     def __getitem__(self, index):
         tar_index   = index % self.tar_size
 
-        '''
-        clean_orig = np.float32(load_img(self.clean_filenames[tar_index]))
-        noisy_orig = np.float32(load_img(self.noisy_filenames[tar_index]))
-        mask_orig = load_mask(self.mask_filenames[tar_index])
-        
-        # TODO: add param flag
-        clean_adj = adjust_noshadowimg(clean_orig, noisy_orig, mask_orig)        
-        
-        clean = torch.from_numpy(clean_adj)
-        noisy = torch.from_numpy(noisy_orig)
-        mask = torch.from_numpy(np.float32(mask_orig))
-        '''
-
         # Load and adjust images
 
-        clean = np.float32(load_val_img(self.clean_filenames[tar_index], load_opts=self.load_opts))
-        noisy = np.float32(load_val_img(self.noisy_filenames[tar_index], load_opts=self.load_opts))
+        clean = np.float32(load_img(self.clean_filenames[tar_index], load_opts=self.load_opts))
+        noisy = np.float32(load_img(self.noisy_filenames[tar_index], load_opts=self.load_opts))
         mask = load_val_mask(self.mask_filenames[tar_index])
         
         if self.load_opts.target_adjust:

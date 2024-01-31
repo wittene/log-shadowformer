@@ -137,19 +137,19 @@ def load_img(filepath, load_opts: LoadOptions = LoadOptions()):
         raise Exception("Cannot perform a log transform without a linear transform first.")
     return img
 
-def load_val_img(filepath, load_opts: LoadOptions = LoadOptions()):
-    img = cv2.cvtColor(cv2.imread(filepath, cv2.IMREAD_UNCHANGED), cv2.COLOR_BGR2RGB)
-    # img = cv2.resize(img, [256, 256], interpolation=cv2.INTER_AREA)
-    resized_img = img.astype(np.float32)
-    resized_img = resized_img /load_opts.divisor
-    if load_opts.linear_transform:
-        img = srgb_to_rgb(img)
-    # We're calculating loss in linear space.
-    if load_opts.linear_transform and load_opts.log_transform:
-        pass
-    if load_opts.log_transform and not load_opts.linear_transform:
-        raise Exception("Cannot perform a log transform without a linear transform first.")
-    return resized_img
+# def load_val_img(filepath, load_opts: LoadOptions = LoadOptions()):
+#     img = cv2.cvtColor(cv2.imread(filepath, cv2.IMREAD_UNCHANGED), cv2.COLOR_BGR2RGB)
+#     # img = cv2.resize(img, [256, 256], interpolation=cv2.INTER_AREA)
+#     resized_img = img.astype(np.float32)
+#     resized_img = resized_img /load_opts.divisor
+#     if load_opts.linear_transform:
+#         img = srgb_to_rgb(img)
+#     # We're calculating loss in linear space.
+#     if load_opts.linear_transform and load_opts.log_transform:
+#         pass
+#     if load_opts.log_transform and not load_opts.linear_transform:
+#         raise Exception("Cannot perform a log transform without a linear transform first.")
+#     return resized_img
 
 def load_mask(filepath):
     img = cv2.imread(filepath, cv2.IMREAD_GRAYSCALE)
