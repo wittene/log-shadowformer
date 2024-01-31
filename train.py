@@ -287,7 +287,7 @@ for epoch in range(start_epoch, opt.nepoch + 1):
                 eval_loss += criterion(restored, target)
                 # E-Edit {
                 # Output residual
-                if opt.save_residuals and epoch % 10 == 0:
+                if opt.save_residuals and (epoch % 10 == 0 or epoch == opt.nepoch):
                     residuals_sub_dir = os.path.join(output_opts.residuals_dir, f"epoch_{epoch}")
                     utils.mkdir(residuals_sub_dir)
                     residual = residual.cpu().detach().numpy()
