@@ -6,6 +6,9 @@ from skimage.color import rgb2lab
 import matplotlib.pyplot as plt
 from options import LoadOptions
 
+from .pseudo_utils import linear_to_log
+from .dataset_utils import adjust_target_colors
+
 
 
 ##################################################
@@ -122,56 +125,30 @@ def load_npy(filepath):
     img = np.load(filepath)
     return img
 
-def load_img(filepath, load_opts: LoadOptions = LoadOptions()):
-    img = cv2.cvtColor(cv2.imread(filepath, cv2.IMREAD_UNCHANGED), cv2.COLOR_BGR2RGB)
-    # img = cv2.resize(img, [256, 256], interpolation=cv2.INTER_AREA)
-    img = img.astype(np.float32)
-    img = img / load_opts.divisor
+def load_imgs(clean_filename, noisy_filename, mask_filename, load_opts: LoadOptions = LoadOptions()):
+    '''Load the shadow, non-shadow, and mask images -- with chosen transforms'''
+
+    # load files
+    load_img  = lambda fp: (cv2.cvtColor(cv2.imread(fp, cv2.IMREAD_UNCHANGED), cv2.COLOR_BGR2RGB).astype(np.float32)) / load_opts.divisor
+    load_mask = lambda fp: (cv2.imread(fp, cv2.IMREAD_GRAYSCALE).astype(np.float32)) / 255.
+    clean = load_img(clean_filename)
+    noisy = load_img(noisy_filename)
+    mask  = load_mask(mask_filename)
+
+    # apply transforms in correct order
     if load_opts.linear_transform:
-        img = srgb_to_rgb(img)
-    if load_opts.linear_transform and load_opts.log_transform:
-        img *= load_opts.log_range
-        img[img!=0] = np.log(img[img!=0])
-        img /= np.log(load_opts.log_range)
-    if load_opts.log_transform and not load_opts.linear_transform:
-        raise Exception("Cannot perform a log transform without a linear transform first.")
-    return img
-
-# def load_val_img(filepath, load_opts: LoadOptions = LoadOptions()):
-#     img = cv2.cvtColor(cv2.imread(filepath, cv2.IMREAD_UNCHANGED), cv2.COLOR_BGR2RGB)
-#     # img = cv2.resize(img, [256, 256], interpolation=cv2.INTER_AREA)
-#     resized_img = img.astype(np.float32)
-#     resized_img = resized_img /load_opts.divisor
-#     if load_opts.linear_transform:
-#         img = srgb_to_rgb(img)
-#     # We're calculating loss in linear space.
-#     if load_opts.linear_transform and load_opts.log_transform:
-#         pass
-#     if load_opts.log_transform and not load_opts.linear_transform:
-#         raise Exception("Cannot perform a log transform without a linear transform first.")
-#     return resized_img
-
-def load_mask(filepath):
-    img = cv2.imread(filepath, cv2.IMREAD_GRAYSCALE)
-    # img = cv2.resize(img, [256, 256], interpolation=cv2.INTER_AREA)
-    # img = cv2.cvtColor(img, cv2.COLOR_BGR2YUV)
-    # kernel = np.ones((8,8), np.uint8)
-    # erosion = cv2.erode(img, kernel, iterations=1)
-    # dilation = cv2.dilate(img, kernel, iterations=1)
-    # contour = dilation - erosion
-    img = img.astype(np.float32)
-    # contour = contour.astype(np.float32)
-    # contour = contour/255.
-    img = img/255
-    return img
-
-def load_val_mask(filepath):
-    img = cv2.imread(filepath, 0)
-    resized_img = img
-    # resized_img = cv2.resize(img, [256, 256], interpolation=cv2.INTER_AREA)
-    resized_img = resized_img.astype(np.float32)
-    resized_img = resized_img/255.
-    return resized_img
+        clean = srgb_to_rgb(clean)
+        noisy = srgb_to_rgb(noisy)
+    if load_opts.target_adjust:
+        clean = adjust_target_colors(clean, noisy, mask)
+    if load_opts.log_transform:
+        if not load_opts.linear_transform:
+            raise Exception("Cannot perform a log transform without a linear transform first.")
+        else:
+            clean = linear_to_log(clean)
+            noisy = linear_to_log(noisy)
+    
+    return clean, noisy, mask
 
 def save_img(img, filepath):
     img_copy = img
@@ -180,12 +157,6 @@ def save_img(img, filepath):
     if img.shape[-1] > 3:    # try to rearrange dims for imwrite
         img_copy = img_copy.transpose((1, 2, 0))
     cv2.imwrite(filepath, cv2.cvtColor(img_copy, cv2.COLOR_RGB2BGR))
-
-# def imsave(img, img_path):
-#     img = np.squeeze(img)
-#     if img.ndim == 3:
-#         img = img[:, :, [2, 1, 0]]
-#     cv2.imwrite(img_path, img)
 
 
 

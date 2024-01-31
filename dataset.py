@@ -2,7 +2,7 @@ import numpy as np
 import os
 from torch.utils.data import Dataset
 import torch
-from utils import load_img, load_mask, load_val_mask, Augment_RGB_torch, adjust_target_colors
+from utils import load_imgs, Augment_RGB_torch
 from options import LoadOptions
 import torch.nn.functional as F
 import random
@@ -44,18 +44,17 @@ class DataLoaderTrain(Dataset):
     def __getitem__(self, index):
         tar_index   = index % self.tar_size
 
-        # Load and adjust images
+        # Load images
+        clean, noisy, mask = load_imgs(
+            clean_filename=self.clean_filenames[tar_index],
+            noisy_filename=self.noisy_filenames[tar_index],
+            mask_filename=self.mask_filenames[tar_index],
+            load_opts=self.load_opts
+        )
 
-        clean = np.float32(load_img(self.clean_filenames[tar_index], load_opts=self.load_opts))
-        noisy = np.float32(load_img(self.noisy_filenames[tar_index], load_opts=self.load_opts))
-        mask = load_mask(self.mask_filenames[tar_index])
-        
-        if self.load_opts.target_adjust:
-            clean = adjust_target_colors(clean, noisy, mask)
-        
-        clean = torch.from_numpy(clean)
-        noisy = torch.from_numpy(noisy)
-        mask = torch.from_numpy(np.float32(mask))
+        clean = torch.from_numpy(np.float32(clean))
+        noisy = torch.from_numpy(np.float32(noisy))
+        mask  = torch.from_numpy(np.float32(mask))
 
         clean = clean.permute(2,0,1)
         noisy = noisy.permute(2,0,1)
@@ -120,18 +119,17 @@ class DataLoaderVal(Dataset):
     def __getitem__(self, index):
         tar_index   = index % self.tar_size
 
-        # Load and adjust images
+        # Load images
+        clean, noisy, mask = load_imgs(
+            clean_filename=self.clean_filenames[tar_index],
+            noisy_filename=self.noisy_filenames[tar_index],
+            mask_filename=self.mask_filenames[tar_index],
+            load_opts=self.load_opts
+        )
 
-        clean = np.float32(load_img(self.clean_filenames[tar_index], load_opts=self.load_opts))
-        noisy = np.float32(load_img(self.noisy_filenames[tar_index], load_opts=self.load_opts))
-        mask = load_val_mask(self.mask_filenames[tar_index])
-        
-        if self.load_opts.target_adjust:
-            clean = adjust_target_colors(clean, noisy, mask)
-        
-        clean = torch.from_numpy(clean)
-        noisy = torch.from_numpy(noisy)
-        mask = torch.from_numpy(np.float32(mask))
+        clean = torch.from_numpy(np.float32(clean))
+        noisy = torch.from_numpy(np.float32(noisy))
+        mask  = torch.from_numpy(np.float32(mask))
 
         clean_filename = os.path.split(self.clean_filenames[tar_index])[-1]
         noisy_filename = os.path.split(self.noisy_filenames[tar_index])[-1]

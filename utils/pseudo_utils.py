@@ -1,4 +1,5 @@
 import torch
+import numpy as np
 
 def srgb_to_rgb(srgb_img, max_val=1):
   # Max val is an optional parameter to scale the image to [0, 1].
@@ -16,3 +17,13 @@ def log_to_linear(log_img, log_range=65535):
   linear_img = torch.exp(log_img)
   linear_img = torch.div(linear_img, log_range)
   return linear_img
+
+def linear_to_log(linear_img, log_range=65535):
+  '''Convert linear image in range [0,1] to log image in range [0,1]'''
+  # scale before taking the log
+  log_img = linear_img * log_range
+  # take the log
+  log_img[log_img != 0] = np.log(log_img[log_img != 0])
+  # scale to [0,1]
+  log_img /= np.log(log_range)
+  return log_img
