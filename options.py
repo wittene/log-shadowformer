@@ -221,19 +221,13 @@ class TestOptions():
     
     def __init_load_opts__(self):
         '''Subset of options for loading images'''
-        self.load_opts = LoadOptions(
+        self.set_load_opts(LoadOptions(
             divisor=self.img_divisor, 
             linear_transform=self.linear_transform, 
             log_transform=self.log_transform,
             target_adjust=self.target_adjust,
             log_range=self.log_range
-        )
-        # Ensure consistency
-        self.img_divisor = self.load_opts.divisor
-        self.linear_transform = self.load_opts.linear_transform
-        self.log_transform = self.load_opts.log_transform
-        self.target_adjust = self.load_opts.target_adjust
-        self.log_range = self.load_opts.log_range
+        ))
     
     def __init_output_opts__(self):
         '''Subset of options for saving output'''
@@ -251,3 +245,31 @@ class TestOptions():
         self.run_label=self.output_opts.run_label
         self.save_dir=self.output_opts.save_dir
         self.weights=self.output_opts.weights_best
+    
+    ##################################################
+    # SETTERS FOR TESTING
+
+    def set_load_opts(self, load_opts: LoadOptions):
+        self.load_opts = load_opts
+        # Ensure consistency
+        self.img_divisor = self.load_opts.divisor
+        self.linear_transform = self.load_opts.linear_transform
+        self.log_transform = self.load_opts.log_transform
+        self.target_adjust = self.load_opts.target_adjust
+        self.log_range = self.load_opts.log_range
+    
+    def update_load_opts(self, 
+                      divisor=None, 
+                      linear_transform=None, 
+                      log_transform=None, 
+                      target_adjust=None, 
+                      log_range=None
+                      ):
+        self.set_load_opts(LoadOptions(
+            divisor=divisor if divisor is not None else self.img_divisor, 
+            linear_transform=linear_transform if linear_transform is not None else self.linear_transform, 
+            log_transform=log_transform if log_transform is not None else self.log_transform,
+            target_adjust=target_adjust if target_adjust is not None else self.target_adjust,
+            log_range=log_range if log_range is not None else self.log_range
+        ))
+        return self.load_opts

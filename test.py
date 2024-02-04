@@ -66,6 +66,8 @@ with torch.no_grad():
         rgb_noisy = data_test[1].cuda()
         mask = data_test[2].cuda()
         if opts.log_transform:
+            # model returns a linear image, convert target to linear as well
+            rgb_gt = log_to_linear(rgb_gt, log_range=load_opts.log_range)
             mask *= MAX_LOG_VAL
         filenames = data_test[3]
 
@@ -79,7 +81,7 @@ with torch.no_grad():
         mask = F.pad(mask, (0, padw, 0, padh), 'reflect')
 
         if opts.tile is None:
-            rgb_restored, residual = model_restoration(rgb_noisy, mask)
+            restored, residual = model_restoration(rgb_noisy, mask)
         else:
             # residual image not currently supported
             residual = None
@@ -105,31 +107,32 @@ with torch.no_grad():
                     E[..., h_idx:(h_idx + tile), w_idx:(w_idx + tile)].add_(out_patch)
                     W[..., h_idx:(h_idx + tile), w_idx:(w_idx + tile)].add_(out_patch_mask)
             restored = E.div_(W)
-        rgb_restored = torch.clamp(rgb_restored, 0, 1).cpu().numpy().squeeze().transpose((1, 2, 0))
+        
+        restored = torch.clamp(restored, 0, 1).cpu().numpy().squeeze().transpose((1, 2, 0))
 
         # Unpad the output
-        rgb_restored = rgb_restored[:height, :width, :]
+        restored = restored[:height, :width, :]
 
         if opts.cal_metrics:
             bm = torch.where(mask == 0, torch.zeros_like(mask), torch.ones_like(mask))  #binarize mask
             bm = np.expand_dims(bm.cpu().numpy().squeeze(), axis=2)
 
             # calculate SSIM in gray space
-            gray_restored = cv2.cvtColor(rgb_restored, cv2.COLOR_RGB2GRAY)
+            gray_restored = cv2.cvtColor(restored, cv2.COLOR_RGB2GRAY)
             gray_gt = cv2.cvtColor(rgb_gt, cv2.COLOR_RGB2GRAY)
             ssim_val_rgb.append(ssim_loss(gray_restored, gray_gt, channel_axis=None))
             ssim_val_ns.append(ssim_loss(gray_restored * (1 - bm.squeeze()), gray_gt * (1 - bm.squeeze()), channel_axis=None))
             ssim_val_s.append(ssim_loss(gray_restored * bm.squeeze(), gray_gt * bm.squeeze(), channel_axis=None))
 
-            psnr_val_rgb.append(psnr_loss(rgb_restored, rgb_gt))
-            psnr_val_ns.append(psnr_loss(rgb_restored * (1 - bm), rgb_gt * (1 - bm)))
-            psnr_val_s.append(psnr_loss(rgb_restored * bm, rgb_gt * bm))
+            psnr_val_rgb.append(psnr_loss(restored, rgb_gt))
+            psnr_val_ns.append(psnr_loss(restored * (1 - bm), rgb_gt * (1 - bm)))
+            psnr_val_s.append(psnr_loss(restored * bm, rgb_gt * bm))
 
             # calculate the RMSE in LAB space
-            rmse_temp = np.abs(cv2.cvtColor(rgb_restored, cv2.COLOR_RGB2LAB) - cv2.cvtColor(rgb_gt, cv2.COLOR_RGB2LAB)).mean() * 3
+            rmse_temp = np.abs(cv2.cvtColor(restored, cv2.COLOR_RGB2LAB) - cv2.cvtColor(rgb_gt, cv2.COLOR_RGB2LAB)).mean() * 3
             rmse_val_rgb.append(rmse_temp)
-            rmse_temp_s = np.abs(cv2.cvtColor(rgb_restored * bm, cv2.COLOR_RGB2LAB) - cv2.cvtColor(rgb_gt * bm, cv2.COLOR_RGB2LAB)).sum() / bm.sum()
-            rmse_temp_ns = np.abs(cv2.cvtColor(rgb_restored * (1-bm), cv2.COLOR_RGB2LAB) - cv2.cvtColor(rgb_gt * (1-bm),
+            rmse_temp_s = np.abs(cv2.cvtColor(restored * bm, cv2.COLOR_RGB2LAB) - cv2.cvtColor(rgb_gt * bm, cv2.COLOR_RGB2LAB)).sum() / bm.sum()
+            rmse_temp_ns = np.abs(cv2.cvtColor(restored * (1-bm), cv2.COLOR_RGB2LAB) - cv2.cvtColor(rgb_gt * (1-bm),
                                                                                                    cv2.COLOR_RGB2LAB)).sum() / (1-bm).sum()
             rmse_val_s.append(rmse_temp_s)
             rmse_val_ns.append(rmse_temp_ns)
@@ -137,8 +140,8 @@ with torch.no_grad():
 
         if opts.save_images:
             if load_opts.linear_transform or load_opts.log_transform:
-                rgb_restored = apply_srgb(rgb_restored)
-            utils.save_img((rgb_restored*255.0).astype(np.ubyte), os.path.join(output_opts.results_dir, filenames[0]))
+                restored = apply_srgb(restored)
+            utils.save_img((restored*255.0).astype(np.ubyte), os.path.join(output_opts.results_dir, filenames[0]))
         
         if opts.save_residuals:
             residual = residual[:height, :width, :]

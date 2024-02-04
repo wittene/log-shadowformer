@@ -81,7 +81,8 @@ def rgb_mean(img, mask=None):
     b_mean = np.mean(b)
     return np.array([r_mean, g_mean, b_mean])
 
-def adjust_target_colors(clean, noisy, mask):
+def adjust_target_colors(clean: np.array, noisy: np.array, mask: np.array):
+    '''Images must be numpy arrays with shape (H, W, C)'''
     dilated_mask = dilate_mask(mask)
     clean_mean = rgb_mean(clean, mask=dilated_mask)
     noisy_mean = rgb_mean(noisy, mask=dilated_mask)

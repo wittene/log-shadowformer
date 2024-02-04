@@ -1,5 +1,6 @@
 import torch
 import numpy as np
+import warnings
 
 def srgb_to_rgb(srgb_img, max_val=1):
   # Max val is an optional parameter to scale the image to [0, 1].
@@ -13,11 +14,15 @@ def srgb_to_rgb(srgb_img, max_val=1):
   srgb_img[srgb_img< 0.0] = 0
   return srgb_img
 
-def log_to_linear(log_img, log_range=65535):
+def log_to_linear(log_img, log_range=None):
+
+  if not log_range:
+    log_range = 65535
+    warnings.warn('Log range was unset in log_to_linear. This may be a mistake! Defaulting to 65535.')
 
   if isinstance(log_img, torch.Tensor):
     # scale from [0,1] to log range
-    linear_img = torch.mul(log_img, torch.log(log_range))
+    linear_img = torch.mul(log_img, np.log(log_range))
     # exponentiate
     linear_img = torch.exp(linear_img)
     # scale again
@@ -35,8 +40,12 @@ def log_to_linear(log_img, log_range=65535):
   
   return linear_img
 
-def linear_to_log(linear_img, log_range=65535):
+def linear_to_log(linear_img, log_range=None):
   '''Convert linear image in range [0,1] to log image in range [0,1]'''
+
+  if not log_range:
+    log_range = 65535
+    warnings.warn('Log range was unset in log_to_linear. This may be a mistake! Defaulting to 65535.')
 
   if isinstance(linear_img, torch.Tensor):
     raise Exception('Not implemented for torch.Tensor image')

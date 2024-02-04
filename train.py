@@ -25,10 +25,6 @@ from timm.utils import NativeScaler
 import utils
 from utils.loader import get_training_data, get_validation_data
 
-
-
-MAX_LOG_VAL = 11.0903
-
 # add dir
 dir_name = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(os.path.join(dir_name,'./auxiliary/'))
@@ -195,29 +191,23 @@ for epoch in range(start_epoch, opt.nepoch + 1):
         target = data[0].cuda()
         input_ = data[1].cuda()
         mask = data[2].cuda()
-        # H-Edit {
-        # if opt.log_transform:
-        #     mask = torch.multiply(mask, MAX_LOG_VAL)
-        # } H-Edit
+        # E-Edit {
+        if load_opts.log_transform:
+            # model returns a linear image, convert target to linear as well
+            target = utils.log_to_linear(target, log_range=load_opts.log_range)
+            mask = torch.multiply(mask, np.log(load_opts.log_range))
+        # } E-Edit
         if epoch > 5:
             target, input_, mask = utils.MixUp_AUG().aug(target, input_, mask)
+        # E-Edit {
         with torch.cuda.amp.autocast():
-            restored, residual = model_restoration(input_, mask) # linear output
-            
-            # H-Edit {
-            # if opt.log_transform:
-            #     restored = torch.clamp(restored,0,MAX_LOG_VAL)
-            #     restored = log_to_linear(restored)
-            #     target = log_to_linear(target)
-            # else:
-            # print(torch.min(restored), torch.max(restored))
-            # if not opt.log_transform:
-            #     restored = torch.clamp(restored,0,1)
-            # } H-Edit
+            # forward pass
+            restored, residual = model_restoration(input_, mask)
             restored = torch.clamp(restored,0,1)
+            # compute loss
             loss = criterion(restored, target)
-        loss_scaler(
-                loss, optimizer,parameters=model_restoration.parameters())
+        # } E-Edit
+        loss_scaler(loss, optimizer, parameters=model_restoration.parameters())
         epoch_loss +=loss.item()
 
         #### Evaluation ####
@@ -233,21 +223,20 @@ for epoch in range(start_epoch, opt.nepoch + 1):
                     target = data_val[0].cuda()
                     input_ = data_val[1].cuda()
                     mask = data_val[2].cuda()
-                    # H-Edit {
-                    # if opt.log_transform:
-                    #     mask = torch.multiply(mask, MAX_LOG_VAL)
-                    # } H-Edit
+                    # E-Edit {
+                    if load_opts.log_transform:
+                        # model returns a linear image, convert target to linear as well
+                        target = utils.log_to_linear(target, log_range=load_opts.log_range)
+                        mask = torch.multiply(mask, np.log(load_opts.log_range))
+                    # } E-Edit
                     filenames = data_val[3]
+                    # E-Edit {
                     with torch.cuda.amp.autocast():
+                        # forward pass
                         restored, residual = model_restoration(input_, mask)
-                    # H-Edit {
-                    # if opt.log_transform:
-                    #     restored = torch.clamp(restored,0,MAX_LOG_VAL)
-                    #     restored = log_to_linear(restored)
-                    #     target = log_to_linear(target)
-                    # else:
-                    # } H-Edit
-                    restored = torch.clamp(restored,0,1)
+                        restored = torch.clamp(restored,0,1)
+                    # } E-Edit
+                    # compute PSNR for batch
                     psnr_val_rgb.append(utils.batch_PSNR(restored, target, False).item())
 
                 psnr_val_rgb = sum(psnr_val_rgb)/len(val_loader)
@@ -267,8 +256,8 @@ for epoch in range(start_epoch, opt.nepoch + 1):
                 model_restoration.train()
                 torch.cuda.empty_cache()
     eval_loss = 0
-    if epoch != 0 and (epoch < 10 or epoch % 3 == 0 or epoch == opt.nepoch):
-        # calculate validation loss after every epoch of training
+    if epoch > 1 and (epoch < 10 or epoch % 3 == 0 or epoch == opt.nepoch):
+        # calculate validation loss at set epoch intervals during training
         with torch.no_grad():
             eval_loss = 0
             model_restoration.eval()
@@ -276,16 +265,20 @@ for epoch in range(start_epoch, opt.nepoch + 1):
                 target = data_val[0].cuda()
                 input_ = data_val[1].cuda()
                 mask = data_val[2].cuda()
-                # H-Edit {
-                # if opt.log_transform:
-                #     mask = torch.multiply(mask, MAX_LOG_VAL)
-                # } H-Edit
-                filenames = data_val[3]
-                with torch.cuda.amp.autocast():
-                    restored, residual = model_restoration(input_, mask)
-                restored = torch.clamp(restored,0,1)
-                eval_loss += criterion(restored, target)
                 # E-Edit {
+                if load_opts.log_transform:
+                    # model returns a linear image, convert target to linear as well
+                    target = utils.log_to_linear(target, log_range=load_opts.log_range)
+                    mask = torch.multiply(mask, np.log(load_opts.log_range))
+                # } E-Edit
+                filenames = data_val[3]
+                # E-Edit {
+                with torch.cuda.amp.autocast():
+                    # forward pass
+                    restored, residual = model_restoration(input_, mask)
+                    restored = torch.clamp(restored,0,1)
+                # compute loss
+                eval_loss += criterion(restored, target)
                 # Output residual
                 if opt.save_residuals and (epoch < 10 or epoch % 10 == 0 or epoch == opt.nepoch):
                     residuals_sub_dir = os.path.join(output_opts.residuals_dir, f"epoch_{epoch}")

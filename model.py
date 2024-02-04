@@ -1273,12 +1273,10 @@ class ShadowFormer(nn.Module):
 
         # Output Projection
         # H-Edit {
-        output_proj = self.output_proj(deconv2, img_size = self.img_size)
-        y = output_proj + x
+        residual = self.output_proj(deconv2, img_size = self.img_size)
+        y = residual + x
         if self.use_log:
-            # linear_y = torch.exp(y)
-            # linear_y = torch.div(linear_y, self.log_range)
-            # always return a linear image
-            return log_to_linear(y), output_proj
-        return y, output_proj # corrected image, residual added to the shadow image
+            # always return a linear image, residual remains in log-space
+            return log_to_linear(y, self.log_range), residual
+        return y, residual # corrected image, residual added to the shadow image
         # } H-Edit

@@ -14,7 +14,7 @@ from .dataset_utils import adjust_target_colors
 ##################################################
 # CONVERT/TRANSFORM
 
-def srgb_to_rgb(srgb_img, max_val=1):
+def srgb_to_rgb(srgb_img: np.array, max_val=1):
   # Max val is an optional parameter to scale the image to [0, 1].
   # Images must be scaled to [0, 1].
   srgb_img = srgb_img / max_val
@@ -123,7 +123,7 @@ def load_npy(filepath):
 def load_imgs(clean_filename, noisy_filename, mask_filename, load_opts: LoadOptions = LoadOptions()):
     '''Load the shadow, non-shadow, and mask images -- with chosen transforms'''
 
-    # load files
+    # load files -- cv2 loads in shape (H, W, C)
     load_img  = lambda fp: (cv2.cvtColor(cv2.imread(fp, cv2.IMREAD_UNCHANGED), cv2.COLOR_BGR2RGB).astype(np.float32)) / load_opts.divisor
     load_mask = lambda fp: (cv2.imread(fp, cv2.IMREAD_GRAYSCALE).astype(np.float32)) / 255.
     clean = load_img(clean_filename)
@@ -140,14 +140,16 @@ def load_imgs(clean_filename, noisy_filename, mask_filename, load_opts: LoadOpti
         if not load_opts.linear_transform:
             raise Exception("Cannot perform a log transform without a linear transform first.")
         else:
-            clean = linear_to_log(clean)
-            noisy = linear_to_log(noisy)
+            clean = linear_to_log(clean, log_range=load_opts.log_range)
+            noisy = linear_to_log(noisy, log_range=load_opts.log_range)
     
     return clean, noisy, mask
 
 def save_img(img, filepath):
     img_copy = img
     if len(img.shape) == 4:  # try to squeeze batch dimension
+        if img.shape[0] > 1:
+            raise Exception('save_img only accepts a single image -- batch dimension must be 1')
         img_copy = img_copy.squeeze()
     if img.shape[-1] > 3:    # try to rearrange dims for imwrite
         img_copy = img_copy.transpose((1, 2, 0))
