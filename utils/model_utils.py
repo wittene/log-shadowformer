@@ -28,7 +28,9 @@ def load_checkpoint(model, weights):
         state_dict = checkpoint["state_dict"]
         new_state_dict = OrderedDict()
         for k, v in state_dict.items():
-            name = k[7:] if 'module.' in k else k
+            # name = k[7:] if 'module.' in k else k
+            # handle refactored layers
+            name = k.replace('dowsample', 'downsample') if 'dowsample' in k else k
             new_state_dict[name] = v
         model.load_state_dict(new_state_dict)
 

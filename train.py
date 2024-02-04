@@ -1,6 +1,8 @@
 import os
 import sys
 import json
+import warnings
+
 import matplotlib.pyplot as plt
 
 import torch
@@ -30,7 +32,7 @@ dir_name = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(os.path.join(dir_name,'./auxiliary/'))
 print(dir_name)
 
-######### parser ###########
+######### Options ###########
 from options import TrainOptions
 opt = TrainOptions(description='image denoising')
 print(vars(opt))
@@ -40,6 +42,10 @@ load_opts = opt.load_opts
 img_opts_train = {
     'patch_size': opt.train_ps
 }
+
+if opt.resume and not os.path.exists(output_opts.weights_latest):
+    warnings.warn('--resume flag set to True, but cannot find weights. Setting --resume to False and training from scratch...')
+    opt.resume = False
 
 
 ######### Set GPUs ###########
@@ -105,9 +111,8 @@ model_restoration.cuda()
 
 ######### Resume ###########
 if opt.resume:
-    path_chk_rest = output_opts.weights_latest
-    utils.load_checkpoint(model_restoration,path_chk_rest)
-    start_epoch = utils.load_start_epoch(path_chk_rest) + 1
+    utils.load_checkpoint(model_restoration, output_opts.weights_latest)
+    start_epoch = utils.load_start_epoch(output_opts.weights_latest) + 1
     # correct the log
     with open(losslogname,'r') as f:
         d = json.load(f)
