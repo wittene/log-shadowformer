@@ -65,10 +65,6 @@ with torch.no_grad():
         rgb_gt = data_test[0].numpy().squeeze().transpose((1, 2, 0))
         rgb_noisy = data_test[1].cuda()
         mask = data_test[2].cuda()
-        if opts.log_transform:
-            # model returns a linear image, convert target to linear as well
-            rgb_gt = log_to_linear(rgb_gt, log_range=load_opts.log_range)
-            mask *= MAX_LOG_VAL
         filenames = data_test[3]
 
         # Pad the input if not_multiple_of win_size * 8
@@ -112,6 +108,14 @@ with torch.no_grad():
 
         # Unpad the output
         restored = restored[:height, :width, :]
+        
+        # E-Edit {
+        if load_opts.log_transform:
+            # model returns image in input space (log-space), convert output and target to linear for evaluation
+            restored = log_to_linear(restored, log_range=load_opts.log_range)
+            target = utils.log_to_linear(target, log_range=load_opts.log_range)
+            # mask = torch.multiply(mask, np.log(load_opts.log_range))
+        # } E-Edit
 
         if opts.cal_metrics:
             bm = torch.where(mask == 0, torch.zeros_like(mask), torch.ones_like(mask))  #binarize mask

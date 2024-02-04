@@ -1050,6 +1050,9 @@ class ShadowFormer(nn.Module):
                 # } H-Edit
         super().__init__()
 
+        # Enable to not make any changes based on log images, including output space
+        use_log = False
+
         self.num_enc_layers = len(depths)//2
         self.num_dec_layers = len(depths)//2
         self.embed_dim = embed_dim
@@ -1276,7 +1279,7 @@ class ShadowFormer(nn.Module):
         residual = self.output_proj(deconv2, img_size = self.img_size)
         y = residual + x
         if self.use_log:
-            # always return a linear image, residual remains in log-space
-            return log_to_linear(y, self.log_range), residual
+            # always return linear images
+            return log_to_linear(y, self.log_range), log_to_linear(residual, self.log_range)
         return y, residual # corrected image, residual added to the shadow image
         # } H-Edit

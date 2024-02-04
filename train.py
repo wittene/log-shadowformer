@@ -196,20 +196,15 @@ for epoch in range(start_epoch, opt.nepoch + 1):
         target = data[0].cuda()
         input_ = data[1].cuda()
         mask = data[2].cuda()
-        # E-Edit {
-        if load_opts.log_transform:
-            # model returns a linear image, convert target to linear as well
-            target = utils.log_to_linear(target, log_range=load_opts.log_range)
-            mask = torch.multiply(mask, np.log(load_opts.log_range))
-        # } E-Edit
+        
         if epoch > 5:
             target, input_, mask = utils.MixUp_AUG().aug(target, input_, mask)
         # E-Edit {
         with torch.cuda.amp.autocast():
-            # forward pass
+            # forward pass -- returns images in input space
             restored, residual = model_restoration(input_, mask)
             restored = torch.clamp(restored,0,1)
-            # compute loss
+            # compute loss in input space
             loss = criterion(restored, target)
         # } E-Edit
         loss_scaler(loss, optimizer, parameters=model_restoration.parameters())
@@ -228,18 +223,19 @@ for epoch in range(start_epoch, opt.nepoch + 1):
                     target = data_val[0].cuda()
                     input_ = data_val[1].cuda()
                     mask = data_val[2].cuda()
-                    # E-Edit {
-                    if load_opts.log_transform:
-                        # model returns a linear image, convert target to linear as well
-                        target = utils.log_to_linear(target, log_range=load_opts.log_range)
-                        mask = torch.multiply(mask, np.log(load_opts.log_range))
-                    # } E-Edit
                     filenames = data_val[3]
                     # E-Edit {
                     with torch.cuda.amp.autocast():
                         # forward pass
                         restored, residual = model_restoration(input_, mask)
                         restored = torch.clamp(restored,0,1)
+                    # } E-Edit
+                    # E-Edit {
+                    if load_opts.log_transform:
+                        # model returns image in input space (log-space), convert output and target to linear for evaluation
+                        restored = utils.log_to_linear(restored, log_range=load_opts.log_range)
+                        target = utils.log_to_linear(target, log_range=load_opts.log_range)
+                        # mask = torch.multiply(mask, np.log(load_opts.log_range))
                     # } E-Edit
                     # compute PSNR for batch
                     psnr_val_rgb.append(utils.batch_PSNR(restored, target, False).item())
@@ -270,12 +266,6 @@ for epoch in range(start_epoch, opt.nepoch + 1):
                 target = data_val[0].cuda()
                 input_ = data_val[1].cuda()
                 mask = data_val[2].cuda()
-                # E-Edit {
-                if load_opts.log_transform:
-                    # model returns a linear image, convert target to linear as well
-                    target = utils.log_to_linear(target, log_range=load_opts.log_range)
-                    mask = torch.multiply(mask, np.log(load_opts.log_range))
-                # } E-Edit
                 filenames = data_val[3]
                 # E-Edit {
                 with torch.cuda.amp.autocast():
@@ -291,6 +281,7 @@ for epoch in range(start_epoch, opt.nepoch + 1):
                     residual = residual.cpu().detach().numpy()
                     residual[residual < 0] = 0
                     residual = residual / np.max(residual)
+                    # Enable to save residual in sRGB, otherwise it will save in input space
                     if load_opts.linear_transform or load_opts.log_transform:
                         residual = utils.apply_srgb(residual)
                     utils.save_img((residual*255.0).astype(np.ubyte), os.path.join(residuals_sub_dir, filenames[0]))
