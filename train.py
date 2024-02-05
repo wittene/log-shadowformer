@@ -43,6 +43,8 @@ img_opts_train = {
     'patch_size': opt.train_ps
 }
 
+MAX_VAL = 1 if not load_opts.log_transform else np.log(load_opts.log_range)
+
 if opt.resume and not os.path.exists(output_opts.weights_latest):
     warnings.warn('--resume flag set to True, but cannot find weights. Setting --resume to False and training from scratch...')
     opt.resume = False
@@ -203,7 +205,7 @@ for epoch in range(start_epoch, opt.nepoch + 1):
         with torch.cuda.amp.autocast():
             # forward pass -- returns images in input space
             restored, residual = model_restoration(input_, mask)
-            restored = torch.clamp(restored,0,1)
+            restored = torch.clamp(restored,0,MAX_VAL)
             # compute loss in input space
             loss = criterion(restored, target)
         # } E-Edit
@@ -228,7 +230,7 @@ for epoch in range(start_epoch, opt.nepoch + 1):
                     with torch.cuda.amp.autocast():
                         # forward pass
                         restored, residual = model_restoration(input_, mask)
-                        restored = torch.clamp(restored,0,1)
+                        restored = torch.clamp(restored,0,MAX_VAL)
                     # } E-Edit
                     # E-Edit {
                     if load_opts.log_transform:
@@ -271,7 +273,7 @@ for epoch in range(start_epoch, opt.nepoch + 1):
                 with torch.cuda.amp.autocast():
                     # forward pass
                     restored, residual = model_restoration(input_, mask)
-                    restored = torch.clamp(restored,0,1)
+                    restored = torch.clamp(restored,0,MAX_VAL)
                 # compute loss
                 eval_loss += criterion(restored, target)
                 # Output residual
@@ -279,11 +281,10 @@ for epoch in range(start_epoch, opt.nepoch + 1):
                     residuals_sub_dir = os.path.join(output_opts.residuals_dir, f"epoch_{epoch}")
                     utils.mkdir(residuals_sub_dir)
                     residual = residual.cpu().detach().numpy()
-                    residual[residual < 0] = 0
-                    residual = residual / np.max(residual)
+                    residual = np.clip(restored, 0, MAX_VAL)
                     # Enable to save residual in sRGB, otherwise it will save in input space
                     if load_opts.linear_transform or load_opts.log_transform:
-                        residual = utils.apply_srgb(residual)
+                        residual = utils.apply_srgb(residual, max_val=MAX_VAL)
                     utils.save_img((residual*255.0).astype(np.ubyte), os.path.join(residuals_sub_dir, filenames[0]))
                 # } E-Edit
             model_restoration.train()

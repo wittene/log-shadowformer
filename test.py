@@ -26,7 +26,8 @@ from sklearn.metrics import mean_squared_error as mse_loss
 opts = options.TestOptions(description='RGB denoising evaluation on validation set')
 load_opts = opts.load_opts
 output_opts = opts.output_opts
-MAX_LOG_VAL = np.log(opts.log_range)
+
+MAX_VAL = 1 if not load_opts.log_transform else np.log(load_opts.log_range)
 
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
 os.environ["CUDA_VISIBLE_DEVICES"] = opts.gpu
@@ -104,7 +105,7 @@ with torch.no_grad():
                     W[..., h_idx:(h_idx + tile), w_idx:(w_idx + tile)].add_(out_patch_mask)
             restored = E.div_(W)
         
-        restored = torch.clamp(restored, 0, 1).cpu().numpy().squeeze().transpose((1, 2, 0))
+        restored = torch.clamp(restored, 0, MAX_VAL).cpu().numpy().squeeze().transpose((1, 2, 0))
 
         # Unpad the output
         restored = restored[:height, :width, :]
@@ -113,7 +114,7 @@ with torch.no_grad():
         if load_opts.log_transform:
             # model returns image in input space (log-space), convert output and target to linear for evaluation
             restored = log_to_linear(restored, log_range=load_opts.log_range)
-            target = utils.log_to_linear(target, log_range=load_opts.log_range)
+            rgb_gt = utils.log_to_linear(rgb_gt, log_range=load_opts.log_range)
             # mask = torch.multiply(mask, np.log(load_opts.log_range))
         # } E-Edit
 
@@ -150,10 +151,9 @@ with torch.no_grad():
         if opts.save_residuals:
             residual = residual[:height, :width, :]
             residual = residual.cpu().detach().numpy()
-            residual[residual < 0] = 0
-            residual = residual / np.max(residual)
+            residual = np.clip(restored, 0, MAX_VAL)
             if load_opts.linear_transform or load_opts.log_transform:
-                residual = utils.apply_srgb(residual)
+                residual = utils.apply_srgb(residual, max_val=MAX_VAL)
             utils.save_img((residual*255.0).astype(np.ubyte), os.path.join(residuals_eval_dir, filenames[0]))
 
 if opts.cal_metrics:
