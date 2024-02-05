@@ -184,8 +184,8 @@ class TestOptions():
         # args for eval
         parser.add_argument('--input_dir', default=f'{PNG_DIR}/test', type=str, help='directory of validation images')
         parser.add_argument('--batch_size', default=1, type=int, help='batch size for dataloader')
-        parser.add_argument('--tile', type=int, default=None, help='Tile size (e.g 720). None means testing on the original resolution image')
-        parser.add_argument('--tile_overlap', type=int, default=32, help='Overlapping of different tiles')
+        parser.add_argument('--tile', type=int, default=320, help='Tile size (e.g 720). None means testing on the original resolution image')
+        parser.add_argument('--tile_overlap', type=int, default=0, help='Overlapping of different tiles')
         parser.add_argument('--train_ps', type=int, default=320, help='patch size of training sample')
 
         # args for UFormer

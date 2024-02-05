@@ -91,7 +91,7 @@ class DataLoaderTrain(Dataset):
 
 ##################################################################################################
 class DataLoaderVal(Dataset):
-    def __init__(self, rgb_dir, load_opts: LoadOptions = LoadOptions()):
+    def __init__(self, rgb_dir, load_opts: LoadOptions = LoadOptions(), random_patch: int = None):
         super(DataLoaderVal, self).__init__()
 
         # Get image filenames
@@ -112,6 +112,7 @@ class DataLoaderVal(Dataset):
 
         # Load options
         self.load_opts = load_opts
+        self.random_patch = random_patch  # randomly crops image to a square patch of this size, if set
 
     def __len__(self):
         return self.tar_size
@@ -137,6 +138,20 @@ class DataLoaderVal(Dataset):
 
         clean = clean.permute(2,0,1)
         noisy = noisy.permute(2,0,1)
+        
+        if self.random_patch:
+            H = clean.shape[1]
+            W = clean.shape[2]
+            if H-self.random_patch==0:
+                r=0
+                c=0
+            else:
+                r = np.random.randint(0, H - self.random_patch)
+                c = np.random.randint(0, W - self.random_patch)
+            clean = clean[:, r:r + self.random_patch, c:c + self.random_patch]
+            noisy = noisy[:, r:r + self.random_patch, c:c + self.random_patch]
+            mask = mask[r:r + self.random_patch, c:c + self.random_patch]
+        
         mask = torch.unsqueeze(mask, dim=0)
 
         return clean, noisy, mask, clean_filename, noisy_filename

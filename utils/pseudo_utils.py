@@ -48,7 +48,12 @@ def linear_to_log(linear_img, log_range=None):
     warnings.warn('Log range was unset in log_to_linear. This may be a mistake! Defaulting to 65535.')
 
   if isinstance(linear_img, torch.Tensor):
-    raise Exception('Not implemented for torch.Tensor image')
+    # scale before taking the log
+    log_img = torch.mul(linear_img, log_range)
+    # take the log
+    log_img[log_img != 0] = torch.log(log_img[log_img != 0])
+    # scale to [0,1]
+    log_img = torch.div(log_img, log_range)
   else:
     # scale before taking the log
     log_img = linear_img * log_range
