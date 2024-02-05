@@ -151,7 +151,7 @@ with torch.no_grad():
         if opts.save_residuals:
             residual = residual[:height, :width, :]
             residual = residual.cpu().detach().numpy()
-            residual = np.clip(restored, 0, MAX_VAL)
+            residual = np.clip(residual, 0, MAX_VAL)
             if load_opts.linear_transform or load_opts.log_transform:
                 residual = utils.apply_srgb(residual, max_val=MAX_VAL)
             utils.save_img((residual*255.0).astype(np.ubyte), os.path.join(residuals_eval_dir, filenames[0]))

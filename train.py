@@ -281,7 +281,7 @@ for epoch in range(start_epoch, opt.nepoch + 1):
                     residuals_sub_dir = os.path.join(output_opts.residuals_dir, f"epoch_{epoch}")
                     utils.mkdir(residuals_sub_dir)
                     residual = residual.cpu().detach().numpy()
-                    residual = np.clip(restored, 0, MAX_VAL)
+                    residual = np.clip(residual, 0, MAX_VAL)
                     # Enable to save residual in sRGB, otherwise it will save in input space
                     if load_opts.linear_transform or load_opts.log_transform:
                         residual = utils.apply_srgb(residual, max_val=MAX_VAL)
