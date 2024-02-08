@@ -81,42 +81,12 @@ torch.cuda.manual_seed_all(1234)
 
 
 
-######### Model ###########
-model_restoration = utils.get_arch(opt)
-
-with open(logname,'a') as f:
-    if opt.resume:
-        f.write('\n'*4)
-    f.write(str(vars(opt))+'\n')
-    if opt.resume:
-        f.write('\n'*2)
-    if not opt.resume:
-        f.write(str(model_restoration)+'\n')
-
-######### Optimizer ###########
-start_epoch = 1
-# eps = .1
-# if opt.optimizer.lower() == 'adam':
-#     optimizer = optim.Adam(model_restoration.parameters(), lr=opt.lr_initial, betas=(0.9, 0.999),eps=eps, weight_decay=opt.weight_decay)
-# elif opt.optimizer.lower() == 'adamw':
-#         optimizer = optim.AdamW(model_restoration.parameters(), lr=opt.lr_initial, betas=(0.9, 0.999),eps=eps, weight_decay=opt.weight_decay)
-if opt.optimizer.lower() == 'adam':
-    optimizer = optim.Adam(model_restoration.parameters(), lr=opt.lr_initial, betas=(0.9, 0.999),eps=1e-8, weight_decay=opt.weight_decay)
-elif opt.optimizer.lower() == 'adamw':
-        optimizer = optim.AdamW(model_restoration.parameters(), lr=opt.lr_initial, betas=(0.9, 0.999),eps=1e-8, weight_decay=opt.weight_decay)
-else:
-    raise Exception("Error optimizer...")
-
-
-######### DataParallel ###########
-model_restoration = torch.nn.DataParallel(model_restoration)
-model_restoration.cuda()
-
 ######### Resume ###########
+checkpoint = None
+start_epoch = 1
 if opt.resume:
+    # load checkpoint
     checkpoint = utils.load_checkpoint(output_opts.weights_latest)
-    checkpoint.load_model(model_restoration)
-    checkpoint.load_optim(optimizer)
     start_epoch = checkpoint.epoch + 1
     # correct the log
     with open(losslogname,'r') as f:
@@ -135,6 +105,46 @@ if opt.resume:
         del d["val"][k]
     with open(losslogname,'w') as f:
         json.dump(d, f)
+
+
+
+######### Model ###########
+model_restoration = utils.get_arch(opt)
+model_restoration.cuda()
+if checkpoint:
+    checkpoint.load_model(model_restoration)
+
+
+with open(logname,'a') as f:
+    if opt.resume:
+        f.write('\n'*4)
+    f.write(str(vars(opt))+'\n')
+    if opt.resume:
+        f.write('\n'*2)
+    if not opt.resume:
+        f.write(str(model_restoration)+'\n')
+
+######### DataParallel ###########
+model_restoration = torch.nn.DataParallel(model_restoration)
+
+
+
+######### Optimizer ###########
+# eps = .1
+# if opt.optimizer.lower() == 'adam':
+#     optimizer = optim.Adam(model_restoration.parameters(), lr=opt.lr_initial, betas=(0.9, 0.999),eps=eps, weight_decay=opt.weight_decay)
+# elif opt.optimizer.lower() == 'adamw':
+#         optimizer = optim.AdamW(model_restoration.parameters(), lr=opt.lr_initial, betas=(0.9, 0.999),eps=eps, weight_decay=opt.weight_decay)
+if opt.optimizer.lower() == 'adam':
+    optimizer = optim.Adam(model_restoration.parameters(), lr=opt.lr_initial, betas=(0.9, 0.999),eps=1e-8, weight_decay=opt.weight_decay)
+elif opt.optimizer.lower() == 'adamw':
+    optimizer = optim.AdamW(model_restoration.parameters(), lr=opt.lr_initial, betas=(0.9, 0.999),eps=1e-8, weight_decay=opt.weight_decay)
+else:
+    raise Exception("Error optimizer...")
+
+if checkpoint:
+    checkpoint.load_optim(optimizer)
+
     
 
 #     lr = utils.load_optim(optimizer, path_chk_rest)
@@ -148,16 +158,25 @@ if opt.resume:
 #     scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, opt.nepoch-start_epoch+1, eta_min=1e-6)
 
 # ######### Scheduler ###########
-if opt.warmup:
+if checkpoint:
+    print("Using cosine strategy!")
+    scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, opt.nepoch-start_epoch+1, eta_min=1e-6)
+elif opt.warmup:
     print("Using warmup and cosine strategy!")
     warmup_epochs = opt.warmup_epochs
     scheduler_cosine = optim.lr_scheduler.CosineAnnealingLR(optimizer, opt.nepoch-warmup_epochs, eta_min=1e-6)
     scheduler = GradualWarmupScheduler(optimizer, multiplier=1, total_epoch=warmup_epochs, after_scheduler=scheduler_cosine)
+    if checkpoint:
+        checkpoint.load_scheduler(scheduler)
+    optimizer.step()
     scheduler.step()
 else:
     step = 50
     print("Using StepLR,step={}!".format(step))
     scheduler = StepLR(optimizer, step_size=step, gamma=0.5)
+    if checkpoint:
+        checkpoint.load_scheduler(scheduler)
+    optimizer.step()
     scheduler.step()
 
 
@@ -178,13 +197,12 @@ print("Size of training set: ", len(train_dataset),", size of validation set: ",
 
 ######### train ###########
 print('===> Start Epoch {} End Epoch {}'.format(start_epoch,opt.nepoch))
-best_psnr = 0 if not opt.resume else checkpoint.best_psnr
-best_epoch = 0 if not opt.resume else checkpoint.best_epoch
-best_iter = 0 if not opt.resume else checkpoint.best_iter
+best_psnr  = checkpoint.best_psnr if checkpoint else 0
+best_epoch = checkpoint.best_epoch if checkpoint else 0
+best_iter  = checkpoint.best_iter if checkpoint else 0
 eval_now = 1000
 print("\nEvaluation after every {} Iterations !!!\n".format(eval_now))
 
-model_restoration.train()
 loss_scaler = NativeScaler()
 torch.cuda.empty_cache()
 ii=0

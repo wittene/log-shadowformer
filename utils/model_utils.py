@@ -22,23 +22,41 @@ class Checkpoint:
         self.best_epoch = best_epoch
         self.best_iter  = best_iter
         # Model state dict
-        self.model = model.state_dict()
+        if isinstance(model, nn.Module):
+            self.model = model.state_dict()
+        else:
+            self.model = model
         # Optimizer state dict
-        self.optimizer = optimizer.state_dict()
+        if isinstance(optimizer, optim.Optimizer):
+            self.optimizer = optimizer.state_dict()
+        else:
+            self.optimizer = optimizer
         # LR Scheduler state dict
-        self.scheduler = scheduler.state_dict()
+        if isinstance(scheduler, optim.lr_scheduler._LRScheduler):
+            self.scheduler = scheduler.state_dict()
+        else:
+            self.scheduler = scheduler
     
     # Helpers for loading state dicts
     def load_model(self, model: nn.Module):
         try:
             model.load_state_dict(self.model)
         except:
-            new_state_dict = OrderedDict()
-            for k, v in self.model.items():
+            # try to handle known parsing issues
+            try:
                 # handle refactored layers in order to load an older model
-                name = k.replace('dowsample', 'downsample') if 'dowsample' in k else k
-                new_state_dict[name] = v
-            model.load_state_dict(new_state_dict)
+                layer_refactor_state_dict = OrderedDict()
+                for k, v in self.model.items():
+                    name = k.replace('dowsample', 'downsample') if 'dowsample' in k else k
+                    layer_refactor_state_dict[name] = v
+                model.load_state_dict(layer_refactor_state_dict)
+            except:
+                # also handle issue with module. prefix
+                prefix_refactor_state_dict = OrderedDict()
+                for k, v in layer_refactor_state_dict.items():
+                    name = k[7:] if 'module.' in k else k
+                    prefix_refactor_state_dict[name] = v
+                model.load_state_dict(prefix_refactor_state_dict)
     
     def load_optim(self, optimizer: optim.Optimizer):
         if self.optimizer is not None:
@@ -46,7 +64,7 @@ class Checkpoint:
         else:
             warnings.warn('No optimizer to load.')
     
-    def load_scheduler(self, scheduler: optim.lr_scheduler.LRScheduler):
+    def load_scheduler(self, scheduler: optim.lr_scheduler._LRScheduler):
         if self.scheduler is not None:
             scheduler.load_state_dict(self.scheduler)
         else:
@@ -93,7 +111,7 @@ def save_checkpoint(checkpoint: Checkpoint, checkpoint_path: str):
     torch.save(checkpoint.to_dict(), checkpoint_path) 
 
 def load_checkpoint(checkpoint_path: str) -> Checkpoint:
-    checkpoint_dict = torch.load(checkpoint_path)
+    checkpoint_dict = torch.load(checkpoint_path, map_location='cuda')
     return Checkpoint.from_dict(checkpoint_dict)
 
 def get_arch(opt):
