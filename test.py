@@ -14,6 +14,7 @@ import torch.nn.functional as F
 
 import options
 import utils
+from utils import Checkpoint
 from utils.loader import get_validation_data
 from utils.pseudo_utils import *
 from utils.image_utils import apply_srgb
@@ -47,7 +48,8 @@ test_loader = DataLoader(dataset=test_dataset, batch_size=1, shuffle=False, num_
 model_restoration = utils.get_arch(opts)
 model_restoration = torch.nn.DataParallel(model_restoration)
 
-utils.load_checkpoint(model_restoration, opts.weights)
+checkpoint = utils.load_checkpoint(output_opts.weights_latest)
+checkpoint.load_model(model_restoration)
 print("===>Testing using weights: ", opts.weights)
 
 model_restoration.cuda()

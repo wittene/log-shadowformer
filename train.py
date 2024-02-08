@@ -25,6 +25,7 @@ from torch.optim.lr_scheduler import StepLR
 from timm.utils import NativeScaler
 
 import utils
+from utils import Checkpoint
 from utils.loader import get_training_data, get_validation_data
 
 # add dir
@@ -113,8 +114,10 @@ model_restoration.cuda()
 
 ######### Resume ###########
 if opt.resume:
-    utils.load_checkpoint(model_restoration, output_opts.weights_latest)
-    start_epoch = utils.load_start_epoch(output_opts.weights_latest) + 1
+    checkpoint = utils.load_checkpoint(output_opts.weights_latest)
+    checkpoint.load_model(model_restoration)
+    checkpoint.load_optim(optimizer)
+    start_epoch = checkpoint.epoch + 1
     # correct the log
     with open(losslogname,'r') as f:
         d = json.load(f)
@@ -175,12 +178,13 @@ print("Size of training set: ", len(train_dataset),", size of validation set: ",
 
 ######### train ###########
 print('===> Start Epoch {} End Epoch {}'.format(start_epoch,opt.nepoch))
-best_psnr = 0
-best_epoch = 0
-best_iter = 0
+best_psnr = 0 if not opt.resume else checkpoint.best_psnr
+best_epoch = 0 if not opt.resume else checkpoint.best_epoch
+best_iter = 0 if not opt.resume else checkpoint.best_iter
 eval_now = 1000
 print("\nEvaluation after every {} Iterations !!!\n".format(eval_now))
 
+model_restoration.train()
 loss_scaler = NativeScaler()
 torch.cuda.empty_cache()
 ii=0
@@ -247,10 +251,10 @@ for epoch in range(start_epoch, opt.nepoch + 1):
                     best_psnr = psnr_val_rgb
                     best_epoch = epoch
                     best_iter = i
-                    torch.save({'epoch': epoch,
-                                'state_dict': model_restoration.state_dict(),
-                                'optimizer' : optimizer.state_dict()
-                                }, output_opts.weights_best)
+                    utils.save_checkpoint(
+                        Checkpoint(epoch=epoch, best_psnr=best_psnr, best_epoch=best_epoch, best_iter=best_iter, model=model_restoration, optimizer=optimizer, scheduler=scheduler),
+                        output_opts.weights_best
+                    )
                     print(f'SAVED TO: {output_opts.weights_best}')
                 print("[Ep %d it %d\t PSNR : %.4f] " % (epoch, i, psnr_val_rgb))
                 with open(logname,'a') as f:
@@ -312,14 +316,15 @@ for epoch in range(start_epoch, opt.nepoch + 1):
     with open(losslogname,'w') as f:
         json.dump(d, f)
 
-    torch.save({'epoch': epoch, 
-                'state_dict': model_restoration.state_dict(),
-                'optimizer' : optimizer.state_dict()
-                }, os.path.join(output_opts.model_dir,"model_latest.pth"))   
+    utils.save_checkpoint(
+        Checkpoint(epoch=epoch, best_psnr=best_psnr, best_epoch=best_epoch, best_iter=best_iter, model=model_restoration, optimizer=optimizer, scheduler=scheduler),
+        os.path.join(output_opts.model_dir,"model_latest.pth")
+    )
 
     if epoch%opt.checkpoint == 0:
-        torch.save({'epoch': epoch, 
-                    'state_dict': model_restoration.state_dict(),
-                    'optimizer' : optimizer.state_dict()
-                    }, os.path.join(output_opts.model_dir,"model_epoch_{}.pth".format(epoch))) 
+        utils.save_checkpoint(
+            Checkpoint(epoch=epoch, best_psnr=best_psnr, best_epoch=best_epoch, best_iter=best_iter, model=model_restoration, optimizer=optimizer, scheduler=scheduler),
+            os.path.join(output_opts.model_dir, f"model_epoch_{epoch}.pth")
+        )
+
 print("Now time is : ",datetime.datetime.now().isoformat())
