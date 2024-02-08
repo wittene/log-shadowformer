@@ -13,7 +13,7 @@ class Checkpoint:
                  best_iter: int,
                  model: nn.Module, 
                  optimizer: optim.Optimizer, 
-                 scheduler: optim.lr_scheduler.LRScheduler
+                 scheduler: optim.lr_scheduler._LRScheduler
                  ):
         # Last completed epoch
         self.epoch = epoch

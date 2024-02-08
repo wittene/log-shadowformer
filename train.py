@@ -109,7 +109,7 @@ else:
 
 
 ######### DataParallel ###########
-model_restoration = torch.nn.DataParallel (model_restoration)
+model_restoration = torch.nn.DataParallel(model_restoration)
 model_restoration.cuda()
 
 ######### Resume ###########
