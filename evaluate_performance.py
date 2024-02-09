@@ -40,11 +40,13 @@ def graph_losses(train_values, val_values, save_path="loss.png", title="MSE Loss
     x = [k for k, _ in train_values]
     y = [v for _, v in train_values]
     xTicks = [t-1 for t in range(0, len(x)+1, 25)]
+    yTicks = list(range(0, 140, 10))
     plt.plot(x, y, label="train")
     xVal = [k for k, _ in val_values]
     yVal = [v for _, v in val_values]
     plt.scatter(xVal, yVal, color="red", label="val", s=7)
     plt.xticks(xTicks)
+    plt.yticks(yTicks)
     plt.legend()
     plt.xlabel("Epoch")
     plt.ylabel("Loss")
