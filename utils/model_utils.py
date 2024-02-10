@@ -74,8 +74,8 @@ class Checkpoint:
     def to_dict(self):
         return {'epoch'     : self.epoch, 
                 'best_psnr' : self.best_psnr,
-                'best_psnr' : self.best_epoch,
-                'best_psnr' : self.best_iter,
+                'best_epoch': self.best_epoch,
+                'best_iter' : self.best_iter,
                 'state_dict': self.model,
                 'optimizer' : self.optimizer,
                 'scheduler' : self.scheduler,
@@ -110,8 +110,8 @@ def is_frozen(model):
 def save_checkpoint(checkpoint: Checkpoint, checkpoint_path: str):
     torch.save(checkpoint.to_dict(), checkpoint_path) 
 
-def load_checkpoint(checkpoint_path: str) -> Checkpoint:
-    checkpoint_dict = torch.load(checkpoint_path, map_location='cuda')
+def load_checkpoint(checkpoint_path: str, map_location='cpu') -> Checkpoint:
+    checkpoint_dict = torch.load(checkpoint_path, map_location=map_location)
     return Checkpoint.from_dict(checkpoint_dict)
 
 def get_arch(opt):

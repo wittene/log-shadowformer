@@ -86,7 +86,7 @@ checkpoint = None
 start_epoch = 1
 if opt.resume:
     # load checkpoint
-    checkpoint = utils.load_checkpoint(output_opts.weights_latest)
+    checkpoint = utils.load_checkpoint(output_opts.weights_latest, map_location='cuda')
     start_epoch = checkpoint.epoch + 1
     # correct the log
     with open(losslogname,'r') as f:
