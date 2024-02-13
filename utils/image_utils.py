@@ -181,6 +181,8 @@ def save_img(img, filepath):
         img_copy = img_copy.squeeze()
     if img.shape[-1] > 3:    # try to rearrange dims for imwrite
         img_copy = img_copy.transpose((1, 2, 0))
+    if filepath.lower().endswith('.cr2'):
+        filepath = ''.join(filepath.split('.')[:-1]) + '.png'
     cv2.imwrite(filepath, cv2.cvtColor(img_copy, cv2.COLOR_RGB2BGR))
 
 
