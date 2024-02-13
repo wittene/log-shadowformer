@@ -15,7 +15,7 @@ transforms_aug = [method for method in dir(augment) if callable(getattr(augment,
 class DatasetDirectory():
     '''Helper for parsing dataset directory based on dataset'''
 
-    VALID_DATASETS = {'ISTD', 'RawSR', 'RawSR-compressed'}
+    VALID_DATASETS = {'ISTD', 'RawSR'}
     VALID_MODES    = {'train', 'test'}
 
     def __init__(self, base_dir: str, dataset: str, mode: str) -> None:
@@ -34,7 +34,7 @@ class DatasetDirectory():
             self.gt_dir = f'{self.mode}_C'
             self.input_dir = f'{self.mode}_A'
             self.mask_dir = f'{self.mode}_B'
-        elif 'RawSR' in dataset:
+        elif dataset == 'RawSR':
             self.gt_dir = 'clean'
             self.input_dir = 'shadow'
             self.mask_dir = 'mask'
@@ -44,7 +44,7 @@ class DatasetDirectory():
             clean_files = sorted(os.listdir(os.path.join(base_dir, self.gt_dir)))
             noisy_files = sorted(os.listdir(os.path.join(base_dir, self.input_dir)))
             mask_files = sorted(os.listdir(os.path.join(base_dir, self.mask_dir)))
-        elif 'RawSR' in dataset:
+        elif dataset == 'RawSR':
             noisy_files = sorted(os.listdir(os.path.join(base_dir, self.input_dir)))
             clean_files = [f"{x.split('-')[0]}-1.{x.split('.')[-1]}" for x in noisy_files]  # 1-N relation between noisy and clean files
             mask_files = sorted(os.listdir(os.path.join(base_dir, self.mask_dir)))
