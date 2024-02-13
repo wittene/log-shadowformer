@@ -33,9 +33,10 @@ MAX_VAL = 1 if not load_opts.log_transform else np.log(load_opts.log_range)
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
 os.environ["CUDA_VISIBLE_DEVICES"] = opts.gpu
 
+output_opts.results_dir = os.path.join(output_opts.results_dir, load_opts.dataset)
 utils.mkdir(output_opts.results_dir)
 utils.mkdir(output_opts.residuals_dir)
-residuals_eval_dir = os.path.join(output_opts.residuals_dir, "eval_best")
+residuals_eval_dir = os.path.join(output_opts.residuals_dir, load_opts.dataset, "eval_best")
 utils.mkdir(residuals_eval_dir)
 
 test_dataset = get_validation_data(base_dir=opts.input_dir, load_opts=load_opts)
