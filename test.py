@@ -69,7 +69,7 @@ with torch.no_grad():
         rgb_gt = data_test[0].numpy().squeeze().transpose((1, 2, 0))
         rgb_noisy = data_test[1].cuda()
         mask = data_test[2].cuda()
-        filenames = data_test[3]
+        filenames = data_test[4]
 
         # Pad the input if not_multiple_of win_size * 8
         img_multiple_of = 8 * opts.win_size
@@ -173,13 +173,13 @@ with torch.no_grad():
         if opts.save_images:
             if load_opts.linear_transform:
                 restored = apply_srgb(restored)
-            utils.save_img((restored*255.0).astype(np.ubyte), os.path.join(output_opts.results_dir, filenames[1]))
+            utils.save_img((restored*255.0).astype(np.ubyte), os.path.join(output_opts.results_dir, filenames[0]))
         
         if opts.save_residuals:
             residual = np.clip(residual, 0, MAX_VAL)
             if load_opts.linear_transform:
                 residual = utils.apply_srgb(residual, max_val=MAX_VAL)
-            utils.save_img((residual*255.0).astype(np.ubyte), os.path.join(residuals_eval_dir, filenames[1]))
+            utils.save_img((residual*255.0).astype(np.ubyte), os.path.join(residuals_eval_dir, filenames[0]))
 
 if opts.cal_metrics:
     psnr_val_rgb = sum(psnr_val_rgb)/len(test_dataset)
