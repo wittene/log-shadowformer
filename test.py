@@ -39,8 +39,7 @@ residuals_eval_dir = os.path.join(output_opts.residuals_dir, "eval_best")
 utils.mkdir(residuals_eval_dir)
 
 test_dataset = get_validation_data(base_dir=opts.input_dir, load_opts=load_opts)
-# test_dataset = get_validation_data(rgb_dir=opts.input_dir, load_opts=load_opts, random_patch=opts.tile)
-test_loader = DataLoader(dataset=test_dataset, batch_size=1, shuffle=False, num_workers=8, drop_last=False)
+test_loader = DataLoader(dataset=test_dataset, batch_size=1, shuffle=False, num_workers=4, drop_last=False)
 
 # Until tiling is debugged, random_patch is a workaround
 # opts.tile = None

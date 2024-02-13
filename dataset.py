@@ -46,7 +46,7 @@ class DatasetDirectory():
             mask_files = sorted(os.listdir(os.path.join(base_dir, self.mask_dir)))
         elif 'RawSR' in dataset:
             noisy_files = sorted(os.listdir(os.path.join(base_dir, self.input_dir)))
-            clean_files = [f"{x.split('-')[0]}-1{x.split('.')[-1]}" for x in noisy_files]  # 1-N relation between noisy and clean files
+            clean_files = [f"{x.split('-')[0]}-1.{x.split('.')[-1]}" for x in noisy_files]  # 1-N relation between noisy and clean files
             mask_files = sorted(os.listdir(os.path.join(base_dir, self.mask_dir)))
         
         self.clean_filenames = [os.path.join(base_dir, self.gt_dir, x) for x in clean_files]
@@ -146,8 +146,8 @@ class DataLoaderVal(Dataset):
         # Load images
         clean, noisy, mask = load_imgs(
             clean_filename=self.dataset_dir.clean_filenames[tar_index],
-            noisy_filename=self.noisy_filenames[tar_index],
-            mask_filename=self.mask_filenames[tar_index],
+            noisy_filename=self.dataset_dir.noisy_filenames[tar_index],
+            mask_filename=self.dataset_dir.mask_filenames[tar_index],
             load_opts=self.load_opts
         )
 

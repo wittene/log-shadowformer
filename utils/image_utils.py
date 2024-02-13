@@ -125,9 +125,6 @@ def load_imgs(clean_filename, noisy_filename, mask_filename, load_opts: LoadOpti
     '''Load the shadow, non-shadow, and mask images -- with chosen transforms'''
 
     # load files -- np.array with shape (H, W, C)
-    # TODO: if raw, then the clean and noisy images are a different dimension than the mask
-    # Fix this: raw shape (3464, 5202, 3), mask shape (3456, 5184)
-
     if load_opts.img_type == 'raw':
         load_img  = lambda fp: (rawpy.imread(fp).postprocess().astype(np.float32)) / load_opts.divisor
         load_mask = lambda fp: ((cv2.imread(fp, cv2.IMREAD_GRAYSCALE) != 0).astype(np.float32))
@@ -141,10 +138,17 @@ def load_imgs(clean_filename, noisy_filename, mask_filename, load_opts: LoadOpti
 
     # pad mask to fit (if loading raw, rgb image may be bigger)
     if mask.shape != noisy.shape[:2]:
-        padh = (noisy.shape[0] - mask.shape[0]) // 2
-        padw = (noisy.shape[1] - mask.shape[1]) // 2
-        mask = np.pad(mask, (padh, padw), 'reflect')
-
+        # Calculate the padding
+        h_diff = noisy.shape[0] - mask.shape[0]
+        w_diff = noisy.shape[1] - mask.shape[1]
+        pad_top = h_diff // 2
+        pad_bottom = h_diff - pad_top
+        pad_left = w_diff // 2
+        pad_right = w_diff - pad_left
+        padding = ((pad_top, pad_bottom), (pad_left, pad_right))
+        # Apply padding
+        mask = np.pad(mask, padding, 'reflect')
+        
     # apply transforms in correct order
     if load_opts.linear_transform:
         clean = srgb_to_rgb(clean)
