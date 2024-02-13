@@ -2,6 +2,7 @@ import torch
 import numpy as np
 import pickle
 import cv2
+import rawpy
 from skimage.color import rgb2lab
 import matplotlib.pyplot as plt
 from options import LoadOptions
@@ -123,12 +124,26 @@ def load_npy(filepath):
 def load_imgs(clean_filename, noisy_filename, mask_filename, load_opts: LoadOptions = LoadOptions()):
     '''Load the shadow, non-shadow, and mask images -- with chosen transforms'''
 
-    # load files -- cv2 loads in shape (H, W, C)
-    load_img  = lambda fp: (cv2.cvtColor(cv2.imread(fp, cv2.IMREAD_UNCHANGED), cv2.COLOR_BGR2RGB).astype(np.float32)) / load_opts.divisor
-    load_mask = lambda fp: (cv2.imread(fp, cv2.IMREAD_GRAYSCALE).astype(np.float32)) / 255.
+    # load files -- np.array with shape (H, W, C)
+    # TODO: if raw, then the clean and noisy images are a different dimension than the mask
+    # Fix this: raw shape (3464, 5202, 3), mask shape (3456, 5184)
+
+    if load_opts.img_type == 'raw':
+        load_img  = lambda fp: (rawpy.imread(fp).postprocess().astype(np.float32)) / load_opts.divisor
+        load_mask = lambda fp: ((cv2.imread(fp, cv2.IMREAD_GRAYSCALE) != 0).astype(np.float32))
+    else:
+        load_img  = lambda fp: (cv2.cvtColor(cv2.imread(fp, cv2.IMREAD_UNCHANGED), cv2.COLOR_BGR2RGB).astype(np.float32)) / load_opts.divisor
+        load_mask = lambda fp: ((cv2.imread(fp, cv2.IMREAD_GRAYSCALE) != 0).astype(np.float32))
+    
     clean = load_img(clean_filename)
     noisy = load_img(noisy_filename)
     mask  = load_mask(mask_filename)
+
+    # pad mask to fit (if loading raw, rgb image may be bigger)
+    if mask.shape != noisy.shape[:2]:
+        padh = (noisy.shape[0] - mask.shape[0]) // 2
+        padw = (noisy.shape[1] - mask.shape[1]) // 2
+        mask = np.pad(mask, (padh, padw), 'reflect')
 
     # apply transforms in correct order
     if load_opts.linear_transform:
@@ -137,8 +152,8 @@ def load_imgs(clean_filename, noisy_filename, mask_filename, load_opts: LoadOpti
     if load_opts.target_adjust:
         clean = adjust_target_colors(clean, noisy, mask)
     if load_opts.log_transform:
-        if not load_opts.linear_transform:
-            raise Exception("Cannot perform a log transform without a linear transform first.")
+        if not (load_opts.img_type != 'srgb' or load_opts.linear_transform):
+            raise Exception("Cannot perform a log transform on sRGB image without a linear transform first.")
         else:
             clean = linear_to_log(clean, log_range=load_opts.log_range)
             noisy = linear_to_log(noisy, log_range=load_opts.log_range)

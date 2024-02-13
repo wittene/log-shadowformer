@@ -15,13 +15,27 @@ PLINEAR_LOG_DIR = "pseudolinear"
 PLOG_DIR = "pseudolog"
 PSEUDO_NO_NORM = "pseudo_no_normf"
 
+VALID_IMG_TYPES = {'srgb', 'raw'}
+
 class LoadOptions():
     '''Options when loading an image'''
-    def __init__(self, divisor=PNG_DIVISOR, linear_transform=False, log_transform=False, target_adjust=False, log_range=LOG_RANGE):
+    def __init__(self, 
+                 dataset='ISTD', 
+                 divisor=PNG_DIVISOR, 
+                 img_type='sRGB',
+                 linear_transform=False, log_transform=False, log_range=LOG_RANGE,
+                 target_adjust=False):
+        # Dataset
+        self.dataset = dataset
         # Normalization constant
         self.divisor = divisor
+        # Image type: sRGB, raw
+        assert img_type.lower() in VALID_IMG_TYPES
+        self.img_type = img_type.lower()
         # Flag for linear transform
         self.linear_transform = linear_transform
+        if self.img_type == 'raw':
+            self.linear_transform = False  # already linear
         # Flag for log transform
         self.log_transform = log_transform
         # Flag for target color adjustment
@@ -116,6 +130,7 @@ class TrainOptions():
 
         # args for linear and log training
         parser.add_argument('--img_divisor', type=float, default=PNG_DIVISOR, help='value to scale images to [0, 1]') # Just leave it default.
+        parser.add_argument('--img_type', type=str, default='srgb', help='Input image type: srgb, raw')
         parser.add_argument('--linear_transform', action='store_true', default=False, help='Transform to pseudolinear') # get pseudolinear data
         parser.add_argument('--log_transform', action='store_true', default=False, help='Transform to pseudolog') # must call both flags, --linear_transform and --log_transform
         parser.add_argument('--log_range', type=int, default=LOG_RANGE, help='Upper bound of values prior to log transform')
@@ -127,14 +142,18 @@ class TrainOptions():
     def __init_load_opts__(self):
         '''Subset of options for loading images'''
         self.load_opts = LoadOptions(
+            dataset=self.dataset,
             divisor=self.img_divisor, 
+            img_type=self.img_type,
             linear_transform=self.linear_transform, 
             log_transform=self.log_transform,
             target_adjust=self.target_adjust,
             log_range=self.log_range
         )
         # Ensure consistency
+        self.dataset = self.load_opts.dataset
         self.img_divisor = self.load_opts.divisor
+        self.img_type = self.load_opts.img_type
         self.linear_transform = self.load_opts.linear_transform
         self.log_transform = self.load_opts.log_transform
         self.target_adjust = self.load_opts.target_adjust
@@ -182,6 +201,7 @@ class TestOptions():
         parser.add_argument('--env', type=str, default='_ISTD', help='env')
         
         # args for eval
+        parser.add_argument('--dataset', type=str, default='ISTD', help='dataset to use for eval: ISTD, RawSR')
         parser.add_argument('--input_dir', default=f'{PNG_DIR}/test', type=str, help='directory of validation images')
         parser.add_argument('--batch_size', default=1, type=int, help='batch size for dataloader')
         parser.add_argument('--tile', type=int, default=None, help='Tile size (e.g 720). None means testing on the original resolution image')
@@ -206,6 +226,7 @@ class TestOptions():
 
         # args for linear and log training
         parser.add_argument('--img_divisor', type=float, default=PNG_DIVISOR, help='value to scale images to [0, 1]')
+        parser.add_argument('--img_type', type=str, default='sRGB', help='Input image type: sRGB, raw')
         parser.add_argument('--linear_transform', action='store_true', default=False, help='Transform to pseudolinear')
         parser.add_argument('--log_transform', action='store_true', default=False, help='Transform to pseudolog')
         parser.add_argument('--log_range', type=int, default=LOG_RANGE, help='Upper bound of values prior to log transform')
@@ -222,7 +243,9 @@ class TestOptions():
     def __init_load_opts__(self):
         '''Subset of options for loading images'''
         self.set_load_opts(LoadOptions(
+            dataset=self.dataset,
             divisor=self.img_divisor, 
+            img_type=self.img_type,
             linear_transform=self.linear_transform, 
             log_transform=self.log_transform,
             target_adjust=self.target_adjust,
@@ -252,21 +275,27 @@ class TestOptions():
     def set_load_opts(self, load_opts: LoadOptions):
         self.load_opts = load_opts
         # Ensure consistency
+        self.dataset = self.load_opts.dataset
         self.img_divisor = self.load_opts.divisor
+        self.img_type = self.load_opts.img_type
         self.linear_transform = self.load_opts.linear_transform
         self.log_transform = self.load_opts.log_transform
         self.target_adjust = self.load_opts.target_adjust
         self.log_range = self.load_opts.log_range
     
     def update_load_opts(self, 
+                      dataset=None,
                       divisor=None, 
+                      img_type=None,
                       linear_transform=None, 
                       log_transform=None, 
                       target_adjust=None, 
                       log_range=None
                       ):
         self.set_load_opts(LoadOptions(
+            dataset=dataset if dataset is not None else self.dataset,
             divisor=divisor if divisor is not None else self.img_divisor, 
+            img_type=img_type if img_type is not None else self.img_type,
             linear_transform=linear_transform if linear_transform is not None else self.linear_transform, 
             log_transform=log_transform if log_transform is not None else self.log_transform,
             target_adjust=target_adjust if target_adjust is not None else self.target_adjust,

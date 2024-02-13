@@ -38,7 +38,7 @@ utils.mkdir(output_opts.residuals_dir)
 residuals_eval_dir = os.path.join(output_opts.residuals_dir, "eval_best")
 utils.mkdir(residuals_eval_dir)
 
-test_dataset = get_validation_data(rgb_dir=opts.input_dir, load_opts=load_opts)
+test_dataset = get_validation_data(base_dir=opts.input_dir, load_opts=load_opts)
 # test_dataset = get_validation_data(rgb_dir=opts.input_dir, load_opts=load_opts, random_patch=opts.tile)
 test_loader = DataLoader(dataset=test_dataset, batch_size=1, shuffle=False, num_workers=8, drop_last=False)
 
@@ -170,13 +170,13 @@ with torch.no_grad():
 
 
         if opts.save_images:
-            if load_opts.linear_transform or load_opts.log_transform:
+            if load_opts.linear_transform:
                 restored = apply_srgb(restored)
             utils.save_img((restored*255.0).astype(np.ubyte), os.path.join(output_opts.results_dir, filenames[0]))
         
         if opts.save_residuals:
             residual = np.clip(residual, 0, MAX_VAL)
-            if load_opts.linear_transform or load_opts.log_transform:
+            if load_opts.linear_transform:
                 residual = utils.apply_srgb(residual, max_val=MAX_VAL)
             utils.save_img((residual*255.0).astype(np.ubyte), os.path.join(residuals_eval_dir, filenames[0]))
 

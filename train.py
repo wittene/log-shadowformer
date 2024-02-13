@@ -305,7 +305,7 @@ for epoch in range(start_epoch, opt.nepoch + 1):
                     residual = residual.cpu().detach().numpy()
                     residual = np.clip(residual, 0, MAX_VAL)
                     # Enable to save residual in sRGB, otherwise it will save in input space
-                    if load_opts.linear_transform or load_opts.log_transform:
+                    if load_opts.linear_transform:
                         residual = utils.apply_srgb(residual, max_val=MAX_VAL)
                     utils.save_img((residual*255.0).astype(np.ubyte), os.path.join(residuals_sub_dir, filenames[0]))
                 # } E-Edit

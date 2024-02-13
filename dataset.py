@@ -12,28 +12,56 @@ augment   = Augment_RGB_torch()
 transforms_aug = [method for method in dir(augment) if callable(getattr(augment, method)) if not method.startswith('_')] 
 
 ##################################################################################################
+class DatasetDirectory():
+    '''Helper for parsing dataset directory based on dataset'''
+
+    VALID_DATASETS = {'ISTD', 'RawSR', 'RawSR-compressed'}
+    VALID_MODES    = {'train', 'test'}
+
+    def __init__(self, base_dir: str, dataset: str, mode: str) -> None:
+        if dataset not in self.VALID_DATASETS:
+            raise Exception(f'Invalid dataset: {dataset}. Dataset must be one of: {self.VALID_DATASETS}')
+        if mode not in self.VALID_MODES:
+            raise Exception(f'Invalid mode: {mode}. Mode must be one of: {self.VALID_MODES}')
+        
+        # Define dataset
+        self.base_dir = base_dir
+        self.dataset = dataset
+        self.mode = mode
+        
+        # Locate sub-directories
+        if dataset == 'ISTD':
+            self.gt_dir = f'{self.mode}_C'
+            self.input_dir = f'{self.mode}_A'
+            self.mask_dir = f'{self.mode}_B'
+        elif 'RawSR' in dataset:
+            self.gt_dir = 'clean'
+            self.input_dir = 'shadow'
+            self.mask_dir = 'mask'
+        
+        # Sort and set filenames
+        clean_files = sorted(os.listdir(os.path.join(base_dir, self.gt_dir)))
+        noisy_files = sorted(os.listdir(os.path.join(base_dir, self.input_dir)))
+        mask_files = sorted(os.listdir(os.path.join(base_dir, self.mask_dir)))
+
+        self.clean_filenames = [os.path.join(base_dir, self.gt_dir, x) for x in clean_files]
+        self.noisy_filenames = [os.path.join(base_dir, self.input_dir, x) for x in noisy_files]
+        self.mask_filenames = [os.path.join(base_dir, self.mask_dir, x) for x in mask_files]
+
+
+##################################################################################################
 class DataLoaderTrain(Dataset):
-    def __init__(self, rgb_dir, load_opts: LoadOptions = LoadOptions(), img_opts=None):
+    def __init__(self, base_dir, load_opts: LoadOptions = LoadOptions(), img_opts=None):
         super(DataLoaderTrain, self).__init__()
         
-        # Get image filenames
-        gt_dir = 'train_C'
-        input_dir = 'train_A'
-        mask_dir = 'train_B'
-        
-        clean_files = sorted(os.listdir(os.path.join(rgb_dir, gt_dir)))
-        noisy_files = sorted(os.listdir(os.path.join(rgb_dir, input_dir)))
-        mask_files = sorted(os.listdir(os.path.join(rgb_dir, mask_dir)))
-
-        self.clean_filenames = [os.path.join(rgb_dir, gt_dir, x) for x in clean_files]
-        self.noisy_filenames = [os.path.join(rgb_dir, input_dir, x) for x in noisy_files]
-        self.mask_filenames = [os.path.join(rgb_dir, mask_dir, x) for x in mask_files]
+        # Set up dataset
+        self.dataset_dir = DatasetDirectory(base_dir=base_dir, dataset=load_opts.dataset, mode='train')
 
         # Options for processing the images, e.g. patch size
         self.img_opts = img_opts
 
         # Number of targets, size of dataset
-        self.tar_size = len(self.clean_filenames)
+        self.tar_size = len(self.dataset_dir.clean_filenames)
 
         # Load options
         self.load_opts = load_opts
@@ -46,9 +74,9 @@ class DataLoaderTrain(Dataset):
 
         # Load images
         clean, noisy, mask = load_imgs(
-            clean_filename=self.clean_filenames[tar_index],
-            noisy_filename=self.noisy_filenames[tar_index],
-            mask_filename=self.mask_filenames[tar_index],
+            clean_filename=self.dataset_dir.clean_filenames[tar_index],
+            noisy_filename=self.dataset_dir.noisy_filenames[tar_index],
+            mask_filename=self.dataset_dir.mask_filenames[tar_index],
             load_opts=self.load_opts
         )
 
@@ -59,9 +87,9 @@ class DataLoaderTrain(Dataset):
         clean = clean.permute(2,0,1)
         noisy = noisy.permute(2,0,1)
 
-        clean_filename = os.path.split(self.clean_filenames[tar_index])[-1]
-        noisy_filename = os.path.split(self.noisy_filenames[tar_index])[-1]
-        mask_filename = os.path.split(self.mask_filenames[tar_index])[-1]
+        clean_filename = os.path.split(self.dataset_dir.clean_filenames[tar_index])[-1]
+        noisy_filename = os.path.split(self.dataset_dir.noisy_filenames[tar_index])[-1]
+        mask_filename = os.path.split(self.dataset_dir.mask_filenames[tar_index])[-1]
 
         # Crop input and target
 
@@ -91,24 +119,14 @@ class DataLoaderTrain(Dataset):
 
 ##################################################################################################
 class DataLoaderVal(Dataset):
-    def __init__(self, rgb_dir, load_opts: LoadOptions = LoadOptions(), random_patch: int = None):
+    def __init__(self, base_dir, load_opts: LoadOptions = LoadOptions(), random_patch: int = None):
         super(DataLoaderVal, self).__init__()
 
-        # Get image filenames
-        gt_dir = 'test_C'
-        input_dir = 'test_A'
-        mask_dir = 'test_B'
-        
-        clean_files = sorted(os.listdir(os.path.join(rgb_dir, gt_dir)))
-        noisy_files = sorted(os.listdir(os.path.join(rgb_dir, input_dir)))
-        mask_files = sorted(os.listdir(os.path.join(rgb_dir, mask_dir)))
-
-        self.clean_filenames = [os.path.join(rgb_dir, gt_dir, x) for x in clean_files]
-        self.noisy_filenames = [os.path.join(rgb_dir, input_dir, x) for x in noisy_files]
-        self.mask_filenames = [os.path.join(rgb_dir, mask_dir, x) for x in mask_files]
+        # Set up dataset
+        self.dataset_dir = DatasetDirectory(base_dir=base_dir, dataset=load_opts.dataset, mode='test')
 
         # Number of targets, size of dataset
-        self.tar_size = len(self.clean_filenames)
+        self.tar_size = len(self.dataset_dir.clean_filenames)
 
         # Load options
         self.load_opts = load_opts
@@ -122,7 +140,7 @@ class DataLoaderVal(Dataset):
 
         # Load images
         clean, noisy, mask = load_imgs(
-            clean_filename=self.clean_filenames[tar_index],
+            clean_filename=self.dataset_dir.clean_filenames[tar_index],
             noisy_filename=self.noisy_filenames[tar_index],
             mask_filename=self.mask_filenames[tar_index],
             load_opts=self.load_opts
@@ -132,9 +150,9 @@ class DataLoaderVal(Dataset):
         noisy = torch.from_numpy(np.float32(noisy))
         mask  = torch.from_numpy(np.float32(mask))
 
-        clean_filename = os.path.split(self.clean_filenames[tar_index])[-1]
-        noisy_filename = os.path.split(self.noisy_filenames[tar_index])[-1]
-        mask_filename = os.path.split(self.mask_filenames[tar_index])[-1]
+        clean_filename = os.path.split(self.dataset_dir.clean_filenames[tar_index])[-1]
+        noisy_filename = os.path.split(self.dataset_dir.noisy_filenames[tar_index])[-1]
+        mask_filename = os.path.split(self.dataset_dir.mask_filenames[tar_index])[-1]
 
         clean = clean.permute(2,0,1)
         noisy = noisy.permute(2,0,1)
