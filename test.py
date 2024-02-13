@@ -129,6 +129,8 @@ with torch.no_grad():
             #     restored = linear_to_log(restored, log_range=load_opts.log_range)
             #     residual = linear_to_log(residual, log_range=load_opts.log_range)
         
+        # Unpad mask if needed (keep as torch tensor)
+        mask = mask[:, :, :height, :width]
         # Convert output into numpy for evaluation and unpad
         restored = torch.clamp(restored, 0, MAX_VAL).cpu().numpy().squeeze().transpose((1, 2, 0))
         restored = restored[:height, :width, :]

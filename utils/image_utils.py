@@ -148,6 +148,15 @@ def load_imgs(clean_filename, noisy_filename, mask_filename, load_opts: LoadOpti
         padding = ((pad_top, pad_bottom), (pad_left, pad_right))
         # Apply padding
         mask = np.pad(mask, padding, 'reflect')
+    
+    # resize
+    if load_opts.resize is not None:
+        # get scaling factor using longest side
+        scaling_factor = load_opts.resize / max(noisy.shape[0], noisy.shape[1])
+        # apply
+        clean = cv2.resize(clean, (int(clean.shape[0] * scaling_factor), int(clean.shape[1] * scaling_factor)))
+        noisy = cv2.resize(noisy, (int(noisy.shape[0] * scaling_factor), int(noisy.shape[1] * scaling_factor)))
+        mask  = cv2.resize(mask,  (int(mask.shape[0] * scaling_factor),  int(mask.shape[1] * scaling_factor)))
         
     # apply transforms in correct order
     if load_opts.linear_transform:

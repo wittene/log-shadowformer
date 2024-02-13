@@ -23,6 +23,7 @@ class LoadOptions():
                  dataset='ISTD', 
                  divisor=PNG_DIVISOR, 
                  img_type='sRGB',
+                 resize=None,
                  linear_transform=False, log_transform=False, log_range=LOG_RANGE,
                  target_adjust=False):
         # Dataset
@@ -32,6 +33,10 @@ class LoadOptions():
         # Image type: sRGB, raw
         assert img_type.lower() in VALID_IMG_TYPES
         self.img_type = img_type.lower()
+        # Resize
+        self.resize = resize
+        if self.resize is not None and self.resize < 64:
+            self.resize = None
         # Flag for linear transform
         self.linear_transform = linear_transform
         if self.img_type == 'raw':
@@ -128,9 +133,10 @@ class TrainOptions():
         parser.add_argument('--warmup', action='store_true', default=True, help='warmup')
         parser.add_argument('--warmup_epochs', type=int, default=3, help='epochs for warmup')
 
-        # args for linear and log training
+        # args for image transforms
         parser.add_argument('--img_divisor', type=float, default=PNG_DIVISOR, help='value to scale images to [0, 1]') # Just leave it default.
         parser.add_argument('--img_type', type=str, default='srgb', help='Input image type: srgb, raw')
+        parser.add_argument('--resize', type=int, default=None, help='Resize longest side to this size, if None, use original resolution')
         parser.add_argument('--linear_transform', action='store_true', default=False, help='Transform to pseudolinear') # get pseudolinear data
         parser.add_argument('--log_transform', action='store_true', default=False, help='Transform to pseudolog') # must call both flags, --linear_transform and --log_transform
         parser.add_argument('--log_range', type=int, default=LOG_RANGE, help='Upper bound of values prior to log transform')
@@ -145,6 +151,7 @@ class TrainOptions():
             dataset=self.dataset,
             divisor=self.img_divisor, 
             img_type=self.img_type,
+            resize=self.resize,
             linear_transform=self.linear_transform, 
             log_transform=self.log_transform,
             target_adjust=self.target_adjust,
@@ -154,6 +161,7 @@ class TrainOptions():
         self.dataset = self.load_opts.dataset
         self.img_divisor = self.load_opts.divisor
         self.img_type = self.load_opts.img_type
+        self.resize = self.load_opts.resize
         self.linear_transform = self.load_opts.linear_transform
         self.log_transform = self.load_opts.log_transform
         self.target_adjust = self.load_opts.target_adjust
@@ -224,9 +232,10 @@ class TestOptions():
         parser.add_argument('--local_skip', action='store_true', default=False, help='local skip connection')
         parser.add_argument('--vit_share', action='store_true', default=False, help='share vit module')
 
-        # args for linear and log training
+        # args for image transforms
         parser.add_argument('--img_divisor', type=float, default=PNG_DIVISOR, help='value to scale images to [0, 1]')
         parser.add_argument('--img_type', type=str, default='sRGB', help='Input image type: sRGB, raw')
+        parser.add_argument('--resize', type=int, default=None, help='Resize longest side to this size, if 0, use original resolution')
         parser.add_argument('--linear_transform', action='store_true', default=False, help='Transform to pseudolinear')
         parser.add_argument('--log_transform', action='store_true', default=False, help='Transform to pseudolog')
         parser.add_argument('--log_range', type=int, default=LOG_RANGE, help='Upper bound of values prior to log transform')
@@ -246,6 +255,7 @@ class TestOptions():
             dataset=self.dataset,
             divisor=self.img_divisor, 
             img_type=self.img_type,
+            resize=self.resize,
             linear_transform=self.linear_transform, 
             log_transform=self.log_transform,
             target_adjust=self.target_adjust,
@@ -278,6 +288,7 @@ class TestOptions():
         self.dataset = self.load_opts.dataset
         self.img_divisor = self.load_opts.divisor
         self.img_type = self.load_opts.img_type
+        self.resize = self.load_opts.resize
         self.linear_transform = self.load_opts.linear_transform
         self.log_transform = self.load_opts.log_transform
         self.target_adjust = self.load_opts.target_adjust
@@ -287,6 +298,7 @@ class TestOptions():
                       dataset=None,
                       divisor=None, 
                       img_type=None,
+                      resize=None,
                       linear_transform=None, 
                       log_transform=None, 
                       target_adjust=None, 
@@ -296,6 +308,7 @@ class TestOptions():
             dataset=dataset if dataset is not None else self.dataset,
             divisor=divisor if divisor is not None else self.img_divisor, 
             img_type=img_type if img_type is not None else self.img_type,
+            resize = resize,
             linear_transform=linear_transform if linear_transform is not None else self.linear_transform, 
             log_transform=log_transform if log_transform is not None else self.log_transform,
             target_adjust=target_adjust if target_adjust is not None else self.target_adjust,
