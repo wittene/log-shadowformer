@@ -40,10 +40,15 @@ class DatasetDirectory():
             self.mask_dir = 'mask'
         
         # Sort and set filenames
-        clean_files = sorted(os.listdir(os.path.join(base_dir, self.gt_dir)))
-        noisy_files = sorted(os.listdir(os.path.join(base_dir, self.input_dir)))
-        mask_files = sorted(os.listdir(os.path.join(base_dir, self.mask_dir)))
-
+        if dataset == 'ISTD':
+            clean_files = sorted(os.listdir(os.path.join(base_dir, self.gt_dir)))
+            noisy_files = sorted(os.listdir(os.path.join(base_dir, self.input_dir)))
+            mask_files = sorted(os.listdir(os.path.join(base_dir, self.mask_dir)))
+        elif 'RawSR' in dataset:
+            noisy_files = sorted(os.listdir(os.path.join(base_dir, self.input_dir)))
+            clean_files = [f"{x.split('-')[0]}-1{x.split('.')[-1]}" for x in noisy_files]  # 1-N relation between noisy and clean files
+            mask_files = sorted(os.listdir(os.path.join(base_dir, self.mask_dir)))
+        
         self.clean_filenames = [os.path.join(base_dir, self.gt_dir, x) for x in clean_files]
         self.noisy_filenames = [os.path.join(base_dir, self.input_dir, x) for x in noisy_files]
         self.mask_filenames = [os.path.join(base_dir, self.mask_dir, x) for x in mask_files]
