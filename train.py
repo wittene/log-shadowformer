@@ -221,7 +221,7 @@ for epoch in range(start_epoch, opt.nepoch + 1):
         input_ = data[1].cuda()
         mask = data[2].cuda()
         
-        if epoch > 5:
+        if epoch > 5 and not (load_opts.linear_transform or load_opts.log_transform):
             target, input_, mask = utils.MixUp_AUG().aug(target, input_, mask)
         # E-Edit {
         with torch.cuda.amp.autocast():
@@ -255,8 +255,8 @@ for epoch in range(start_epoch, opt.nepoch + 1):
                         restored = torch.clamp(restored,0,MAX_VAL)
                     # } E-Edit
                     # E-Edit {
+                    # model returns image in input space (log-space), convert output and target to linear for evaluation
                     if load_opts.log_transform:
-                        # model returns image in input space (log-space), convert output and target to linear for evaluation
                         restored = utils.log_to_linear(restored, log_range=load_opts.log_range)
                         target = utils.log_to_linear(target, log_range=load_opts.log_range)
                         # mask = torch.multiply(mask, np.log(load_opts.log_range))
