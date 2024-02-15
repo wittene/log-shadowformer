@@ -7,46 +7,13 @@ from skimage.color import rgb2lab
 import matplotlib.pyplot as plt
 from options import LoadOptions
 
-from .pseudo_utils import linear_to_log
+from .pseudo_utils import linear_to_log, srgb_to_rgb
 from .dataset_utils import adjust_target_colors
 
 
 
 ##################################################
 # CONVERT/TRANSFORM
-
-def srgb_to_rgb(srgb_img: np.array, max_val=1):
-  # Max val is an optional parameter to scale the image to [0, 1].
-  # Images must be scaled to [0, 1].
-  srgb_img = srgb_img / max_val
-  low_mask = srgb_img <= 0.04045
-  high_mask = srgb_img > 0.04045
-  srgb_img[low_mask] /= 12.92
-  srgb_img[high_mask] = (((srgb_img[high_mask]+ 0.055)/1.055)**(2.4))
-  srgb_img[srgb_img > 1.0] = 1.0
-  srgb_img[srgb_img< 0.0] = 0
-  return srgb_img
-
-def apply_srgb(linear_img:np.array, max_val:int=1)->np.array:
-  '''
-  Apply srgb to a linear image.
-  Input:
-    linear_img: a linear image. Needs to be scaled to the range [0, 1].
-    Either input a linear image in the correct range or use the optional
-    max_val parameter to scale the image.
-  Output:
-    The image with srgb applied in range [0, 1] as datatype float32.
-  '''
-  linear_img /= max_val
-  if np.max(linear_img) > 1 or np.min(linear_img) < 0:
-      raise Exception("linear_img must be scaled to [0, 1]. Use max_val with the appropriate max_val to scale the image.")
-  low_mask = linear_img <= 0.0031308
-  high_mask = linear_img > 0.0031308
-  linear_img[low_mask] *= 12.92
-  linear_img[high_mask] = ((linear_img[high_mask]*1.055)**(1/2.4)) - 0.055
-  linear_img[linear_img > 1.0] = 1.0
-  linear_img[linear_img < 0.0] = 0
-  return linear_img
 
 def tensor2im(input_image, imtype=np.uint8):
     """"Converts a Tensor array into a numpy image array.

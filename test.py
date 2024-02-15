@@ -17,7 +17,6 @@ import utils
 from utils import Checkpoint
 from utils.loader import get_validation_data
 from utils.pseudo_utils import *
-from utils.image_utils import apply_srgb
 
 from skimage import img_as_float32, img_as_ubyte
 from skimage.metrics import peak_signal_noise_ratio as psnr_loss
@@ -144,6 +143,9 @@ with torch.no_grad():
             restored = log_to_linear(restored, log_range=load_opts.log_range)
             rgb_gt = log_to_linear(rgb_gt, log_range=load_opts.log_range)
             # mask = torch.multiply(mask, np.log(load_opts.log_range))
+        if load_opts.linear_transform:
+            restored = utils.apply_srgb(restored, max_val=MAX_VAL)
+            rgb_gt = utils.apply_srgb(rgb_gt, max_val=MAX_VAL)
         # } E-Edit
 
         if opts.cal_metrics:
@@ -172,8 +174,6 @@ with torch.no_grad():
 
 
         if opts.save_images:
-            if load_opts.linear_transform:
-                restored = apply_srgb(restored)
             utils.save_img((restored*255.0).astype(np.ubyte), os.path.join(output_opts.results_dir, filenames[0]))
         
         if opts.save_residuals:

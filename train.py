@@ -260,6 +260,9 @@ for epoch in range(start_epoch, opt.nepoch + 1):
                         restored = utils.log_to_linear(restored, log_range=load_opts.log_range)
                         target = utils.log_to_linear(target, log_range=load_opts.log_range)
                         # mask = torch.multiply(mask, np.log(load_opts.log_range))
+                    if load_opts.linear_transform:
+                        restored = utils.apply_srgb(restored, max_val=MAX_VAL)
+                        target = utils.apply_srgb(target, max_val=MAX_VAL)
                     # } E-Edit
                     # compute PSNR for batch
                     psnr_val_rgb.append(utils.batch_PSNR(restored, target, False).item())
