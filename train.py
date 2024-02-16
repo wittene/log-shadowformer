@@ -261,8 +261,9 @@ for epoch in range(start_epoch, opt.nepoch + 1):
                         target = utils.log_to_linear(target, log_range=load_opts.log_range)
                         # mask = torch.multiply(mask, np.log(load_opts.log_range))
                     if load_opts.linear_transform:
-                        restored = utils.apply_srgb(restored, max_val=MAX_VAL)
-                        target = utils.apply_srgb(target, max_val=MAX_VAL)
+                        # by here, max_val should always be 1
+                        restored = utils.apply_srgb(restored, max_val=1)
+                        target = utils.apply_srgb(target, max_val=1)
                     # } E-Edit
                     # compute PSNR for batch
                     psnr_val_rgb.append(utils.batch_PSNR(restored, target, False).item())
@@ -308,8 +309,8 @@ for epoch in range(start_epoch, opt.nepoch + 1):
                     residual = residual.cpu().detach().numpy()
                     residual = np.clip(residual, 0, MAX_VAL)
                     # Enable to save residual in sRGB, otherwise it will save in input space
-                    if load_opts.linear_transform:
-                        residual = utils.apply_srgb(residual, max_val=MAX_VAL)
+                    # if load_opts.linear_transform:
+                    #     residual = utils.apply_srgb(residual, max_val=MAX_VAL)
                     utils.save_img((residual*255.0).astype(np.ubyte), os.path.join(residuals_sub_dir, filenames[0]))
                 # } E-Edit
             model_restoration.train()

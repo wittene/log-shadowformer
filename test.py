@@ -144,8 +144,9 @@ with torch.no_grad():
             rgb_gt = log_to_linear(rgb_gt, log_range=load_opts.log_range)
             # mask = torch.multiply(mask, np.log(load_opts.log_range))
         if load_opts.linear_transform:
-            restored = utils.apply_srgb(restored, max_val=MAX_VAL)
-            rgb_gt = utils.apply_srgb(rgb_gt, max_val=MAX_VAL)
+            # by here, max_val should always be 1
+            restored = utils.apply_srgb(restored, max_val=1)
+            rgb_gt = utils.apply_srgb(rgb_gt, max_val=1)
         # } E-Edit
 
         if opts.cal_metrics:
@@ -178,8 +179,8 @@ with torch.no_grad():
         
         if opts.save_residuals:
             residual = np.clip(residual, 0, MAX_VAL)
-            if load_opts.linear_transform:
-                residual = utils.apply_srgb(residual, max_val=MAX_VAL)
+            # if load_opts.linear_transform:
+            #     residual = utils.apply_srgb(residual, max_val=MAX_VAL)
             utils.save_img((residual*255.0).astype(np.ubyte), os.path.join(residuals_eval_dir, filenames[0]))
 
 if opts.cal_metrics:
