@@ -167,13 +167,9 @@ with torch.no_grad():
             psnr_val_s.append(psnr_loss(restored * bm, rgb_gt * bm))
 
             # calculate the RMSE in LAB space
-            rmse_temp = np.abs(cv2.cvtColor(restored, cv2.COLOR_RGB2LAB) - cv2.cvtColor(rgb_gt, cv2.COLOR_RGB2LAB)).mean() * 3
-            rmse_val_rgb.append(rmse_temp)
-            rmse_temp_s = np.abs(cv2.cvtColor(restored * bm, cv2.COLOR_RGB2LAB) - cv2.cvtColor(rgb_gt * bm, cv2.COLOR_RGB2LAB)).sum() / bm.sum()
-            rmse_temp_ns = np.abs(cv2.cvtColor(restored * (1-bm), cv2.COLOR_RGB2LAB) - cv2.cvtColor(rgb_gt * (1-bm),
-                                                                                                   cv2.COLOR_RGB2LAB)).sum() / (1-bm).sum()
-            rmse_val_s.append(rmse_temp_s)
-            rmse_val_ns.append(rmse_temp_ns)
+            rmse_val_rgb.append(np.abs(cv2.cvtColor(restored, cv2.COLOR_RGB2LAB) - cv2.cvtColor(rgb_gt, cv2.COLOR_RGB2LAB)).mean() * 3)
+            rmse_val_s.append(np.abs(cv2.cvtColor(restored * bm, cv2.COLOR_RGB2LAB) - cv2.cvtColor(rgb_gt * bm, cv2.COLOR_RGB2LAB)).sum() / bm.sum())
+            rmse_val_ns.append(np.abs(cv2.cvtColor(restored * (1-bm), cv2.COLOR_RGB2LAB) - cv2.cvtColor(rgb_gt * (1-bm), cv2.COLOR_RGB2LAB)).sum() / (1-bm).sum())
 
 
         if opts.save_images:
@@ -191,16 +187,39 @@ with torch.no_grad():
             utils.save_img((diff*255.0).astype(np.ubyte), os.path.join(output_opts.diffs_dir, filenames[0]))
 
 if opts.cal_metrics:
-    psnr_val_rgb = sum(psnr_val_rgb)/len(test_dataset)
-    ssim_val_rgb = sum(ssim_val_rgb)/len(test_dataset)
-    psnr_val_s = sum(psnr_val_s)/len(test_dataset)
-    ssim_val_s = sum(ssim_val_s)/len(test_dataset)
-    psnr_val_ns = sum(psnr_val_ns)/len(test_dataset)
-    ssim_val_ns = sum(ssim_val_ns)/len(test_dataset)
-    rmse_val_rgb = sum(rmse_val_rgb) / len(test_dataset)
-    rmse_val_s = sum(rmse_val_s) / len(test_dataset)
-    rmse_val_ns = sum(rmse_val_ns) / len(test_dataset)
-    print("PSNR: %f, SSIM: %f, RMSE: %f " %(psnr_val_rgb, ssim_val_rgb, rmse_val_rgb))
-    print("SPSNR: %f, SSSIM: %f, SRMSE: %f " %(psnr_val_s, ssim_val_s, rmse_val_s))
-    print("NSPSNR: %f, NSSSIM: %f, NSRMSE: %f " %(psnr_val_ns, ssim_val_ns, rmse_val_ns))
+
+    psnr_val_rgb = np.array(psnr_val_rgb)
+    ssim_val_rgb = np.array(ssim_val_rgb)
+    psnr_val_s = np.array(psnr_val_s)
+    ssim_val_s = np.array(ssim_val_s)
+    psnr_val_ns = np.array(psnr_val_ns)
+    ssim_val_ns = np.array(ssim_val_ns)
+    rmse_val_rgb = np.array(rmse_val_rgb)
+    rmse_val_s = np.array(rmse_val_s)
+    rmse_val_ns = np.array(rmse_val_ns)
+
+    # mean
+    print('Eval Mean:')
+    print(f"PSNR: {np.mean(psnr_val_rgb)}, SSIM: {np.mean(ssim_val_rgb)}, RMSE: {np.mean(rmse_val_rgb)} ")
+    print(f"SPSNR: {np.mean(psnr_val_s)}, SSSIM: {np.mean(ssim_val_s)}, SRMSE: {np.mean(rmse_val_s)} ")
+    print(f"NSPSNR: {np.mean(psnr_val_ns)}, NSSSIM: {np.mean(ssim_val_ns)}, NSRMSE: {np.mean(rmse_val_ns)} ")
+    print()
+
+    # trimean
+    trimean = lambda arr: (np.quantile(arr, 0.25) + 2*np.quantile(arr, 0.5) + np.quantile(arr, 0.75)) / 4
+    print('Eval Trimean:')
+    print(f"PSNR: {trimean(psnr_val_rgb)}, SSIM: {trimean(ssim_val_rgb)}, RMSE: {trimean(rmse_val_rgb)} ")
+    print(f"SPSNR: {trimean(psnr_val_s)}, SSSIM: {trimean(ssim_val_s)}, SRMSE: {trimean(rmse_val_s)} ")
+    print(f"NSPSNR: {trimean(psnr_val_ns)}, NSSSIM: {trimean(ssim_val_ns)}, NSRMSE: {trimean(rmse_val_ns)} ")
+    print()
+
+    # median
+    print('Eval Median:')
+    print(f"PSNR: {np.median(psnr_val_rgb)}, SSIM: {np.median(ssim_val_rgb)}, RMSE: {np.median(rmse_val_rgb)} ")
+    print(f"SPSNR: {np.median(psnr_val_s)}, SSSIM: {np.median(ssim_val_s)}, SRMSE: {np.median(rmse_val_s)} ")
+    print(f"NSPSNR: {np.median(psnr_val_ns)}, NSSSIM: {np.median(ssim_val_ns)}, NSRMSE: {np.median(rmse_val_ns)} ")
+    print()
+
+    
+    
 
