@@ -186,7 +186,8 @@ with torch.no_grad():
             utils.save_img((residual*255.0).astype(np.ubyte), os.path.join(residuals_eval_dir, filenames[0]))
         
         if opts.save_diffs:
-            diff = np.clip(rgb_gt - restored, 0, 1)
+            diff = np.absolute(rgb_gt - restored)
+            diff = np.clip(diff, 0, 1)
             utils.save_img((diff*255.0).astype(np.ubyte), os.path.join(output_opts.diffs_dir, filenames[0]))
 
 if opts.cal_metrics:
