@@ -67,6 +67,8 @@ class OutputOptions():
         self.residuals_dir = os.path.join(self.log_dir, 'residuals')
         # Path to results
         self.results_dir = os.path.join(self.log_dir, 'results')
+        # Path to diff images
+        self.diffs_dir = os.path.join(self.log_dir, 'diffs')
 
 class TrainOptions():
     """Options for training"""
@@ -244,6 +246,7 @@ class TestOptions():
         # args for output
         parser.add_argument('--save_images', action='store_true', help='Save denoised images in result directory')
         parser.add_argument('--save_residuals', action='store_true', default=False, help='Save residuals')
+        parser.add_argument('--save_diffs', action='store_true', default=False, help='Save target-output difference images')
         parser.add_argument('--cal_metrics', action='store_true', help='Measure denoised images with GT')
 
         # parse arguments and copy into self
