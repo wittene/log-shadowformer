@@ -53,6 +53,36 @@ class MixUp_AUG:
         return rgb_gt, rgb_noisy, gray_mask
 
 
+### Intensity/Color balance augmentation
+
+class Color_Aug:
+    def __init__(self, lower_bound=0.25, upper_bound=1.0) -> None:
+        self.lower_bound = lower_bound
+        self.upper_bound = upper_bound
+    
+    def intensity_aug(self, img: torch.Tensor):
+        max_pixel = torch.max(img)
+        coef = np.random.uniform(self.lower_bound / max_pixel, self.upper_bound / max_pixel)
+        aug_img = torch.clamp(img * coef, 0, 1)
+        return aug_img
+
+    def color_aug(self, img: torch.Tensor):
+        # Assumes tensor has shape (C, H, W)
+        # Apply intensity aug separately to each channel
+        aug_r = self.intensity_aug(img[0, :, :])
+        aug_g = self.intensity_aug(img[1, :, :])
+        aug_b = self.intensity_aug(img[2, :, :])
+        aug_img = torch.stack([aug_r, aug_g, aug_b])
+        return aug_img
+    
+    def aug(self, img, random_apply: bool = True):
+        # apply each tansform randomly
+        apply = lambda: np.random.randint(2) if random_apply else 1
+        # do intensity, then color
+        aug_img = self.intensity_aug(img) if apply() else img
+        aug_img = self.color_aug(aug_img) if apply() else img
+        return aug_img
+
 ### adjust shadow/no-shadow images
 
 def dilate_mask(mask):

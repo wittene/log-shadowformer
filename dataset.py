@@ -2,7 +2,7 @@ import numpy as np
 import os
 from torch.utils.data import Dataset
 import torch
-from utils import load_imgs, Augment_RGB_torch
+from utils import load_imgs, Augment_RGB_torch, Color_Aug
 from options import LoadOptions
 import torch.nn.functional as F
 import random
@@ -10,6 +10,8 @@ import matplotlib.pyplot as plt
 
 augment   = Augment_RGB_torch()
 transforms_aug = [method for method in dir(augment) if callable(getattr(augment, method)) if not method.startswith('_')] 
+
+augment_color = Color_Aug()
 
 ##################################################################################################
 class DatasetDirectory():
@@ -113,13 +115,17 @@ class DataLoaderTrain(Dataset):
         noisy = noisy[:, r:r + ps, c:c + ps]
         mask = mask[r:r + ps, c:c + ps]
 
+        # augmentation: geometric transformation
         apply_trans = transforms_aug[random.getrandbits(3)]
-
         clean = getattr(augment, apply_trans)(clean)
         noisy = getattr(augment, apply_trans)(noisy)        
         mask = getattr(augment, apply_trans)(mask)
+
+        # augmentation: intensity/color
+        clean = augment_color.aug(clean)
+        noisy = augment_color.aug(noisy)
+
         mask = torch.unsqueeze(mask, dim=0)
-        
         return clean, noisy, mask, clean_filename, noisy_filename
 
 ##################################################################################################
