@@ -2,6 +2,8 @@ import torch
 import numpy as np
 import cv2
 
+from typing import Iterable
+
 ### rotate and flip
 class Augment_RGB_torch:
     def __init__(self):
@@ -56,32 +58,58 @@ class MixUp_AUG:
 ### Intensity/Color balance augmentation
 
 class Color_Aug:
-    def __init__(self, lower_bound=0.25, upper_bound=1.0) -> None:
+    def __init__(self, lower_bound=0.25, upper_bound=1.0, img_type=np.array) -> None:
         self.lower_bound = lower_bound
         self.upper_bound = upper_bound
+        self.img_type = img_type
+        if self.img_type is np.array:
+            self.max = np.max
+            self.clip = np.clip
+            self.stack = lambda imgs: np.stack(imgs, axis=-1)
+        else:
+            self.max = torch.max
+            self.clip = torch.clamp
+            self.stack = torch.stack
     
-    def intensity_aug(self, img: torch.Tensor):
-        max_pixel = torch.max(img)
+    def intensity_aug(self, imgs: Iterable):
+        '''
+        Apply the same intensity augmentation to each image
+        Returns list of augmented images, corresponding to input images
+        '''
+        max_pixel = max([self.max(img) for img in imgs])
         coef = np.random.uniform(self.lower_bound / max_pixel, self.upper_bound / max_pixel)
-        aug_img = torch.clamp(img * coef, 0, 1)
-        return aug_img
+        aug_imgs = [self.clip(img * coef, 0, 1) for img in imgs]
+        return aug_imgs
 
-    def color_aug(self, img: torch.Tensor):
-        # Assumes tensor has shape (C, H, W)
-        # Apply intensity aug separately to each channel
-        aug_r = self.intensity_aug(img[0, :, :])
-        aug_g = self.intensity_aug(img[1, :, :])
-        aug_b = self.intensity_aug(img[2, :, :])
-        aug_img = torch.stack([aug_r, aug_g, aug_b])
-        return aug_img
+    def color_aug(self, imgs):
+        '''
+        Apply the same color balance augmentation to each image
+            Assumes torch tensor has shape (C, H, W), and np.array has shape (H, W, C)
+            Apply intensity aug separately to each channel.
+        Returns list of augmented images, corresponding to input images
+        '''
+        rs = [img[:, :, 0] if self.img_type is np.array else img[0, :, :] for img in imgs]
+        gs = [img[:, :, 1] if self.img_type is np.array else img[1, :, :] for img in imgs]
+        bs = [img[:, :, 2] if self.img_type is np.array else img[2, :, :] for img in imgs]
+        aug_rs = self.intensity_aug(rs)
+        aug_gs = self.intensity_aug(gs)
+        aug_bs = self.intensity_aug(bs)
+        aug_imgs = [self.stack([aug_r, aug_g, aug_b]) for (aug_r, aug_g, aug_b) in zip(aug_rs, aug_gs, aug_bs)]
+        return aug_imgs
     
-    def aug(self, img, random_apply: bool = True):
-        # apply each tansform randomly
+    def aug(self, imgs, random_apply: bool = True):
+        '''
+        Apply the same intensity and color balance augmentations to each image
+            Intensity first, then color balance
+            If random_apply is set, then 50% chance of applying each augmentation
+        Returns list of augmented images, corresponding to input images
+        '''
+        # apply each transform randomly
         apply = lambda: np.random.randint(2) if random_apply else 1
         # do intensity, then color
-        aug_img = self.intensity_aug(img) if apply() else img
-        aug_img = self.color_aug(aug_img) if apply() else img
-        return aug_img
+        aug_imgs = self.intensity_aug(imgs) if apply() else imgs
+        aug_imgs = self.color_aug(aug_imgs) if apply() else imgs
+        return aug_imgs
 
 ### adjust shadow/no-shadow images
 

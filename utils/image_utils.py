@@ -8,7 +8,9 @@ import matplotlib.pyplot as plt
 from options import LoadOptions
 
 from .pseudo_utils import linear_to_log, srgb_to_rgb
-from .dataset_utils import adjust_target_colors
+from .dataset_utils import adjust_target_colors, Color_Aug
+COLOR_AUG = Color_Aug(img_type=np.array)
+
 
 
 
@@ -88,7 +90,7 @@ def load_npy(filepath):
     img = np.load(filepath)
     return img
 
-def load_imgs(clean_filename, noisy_filename, mask_filename, load_opts: LoadOptions = LoadOptions()):
+def load_imgs(clean_filename, noisy_filename, mask_filename, load_opts: LoadOptions = LoadOptions(), color_aug: bool = True):
     '''Load the shadow, non-shadow, and mask images -- with chosen transforms'''
 
     # load files -- np.array with shape (H, W, C)
@@ -125,6 +127,10 @@ def load_imgs(clean_filename, noisy_filename, mask_filename, load_opts: LoadOpti
         noisy = cv2.resize(noisy, (int(noisy.shape[1] * scaling_factor), int(noisy.shape[0] * scaling_factor)))
         mask  = cv2.resize(mask,  (int(mask.shape[1] * scaling_factor),  int(mask.shape[0] * scaling_factor)))
         
+    # apply color augmentation in sRGB space
+    if color_aug:
+        [clean, noisy] = COLOR_AUG.aug([clean, noisy])
+
     # apply transforms in correct order
     if load_opts.linear_transform:
         clean = srgb_to_rgb(clean)

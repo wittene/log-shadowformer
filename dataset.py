@@ -9,9 +9,7 @@ import random
 import matplotlib.pyplot as plt
 
 augment   = Augment_RGB_torch()
-transforms_aug = [method for method in dir(augment) if callable(getattr(augment, method)) if not method.startswith('_')] 
-
-augment_color = Color_Aug()
+transforms_aug = [method for method in dir(augment) if callable(getattr(augment, method)) if not method.startswith('_')]
 
 ##################################################################################################
 class DatasetDirectory():
@@ -99,7 +97,6 @@ class DataLoaderTrain(Dataset):
         mask_filename = os.path.split(self.dataset_dir.mask_filenames[tar_index])[-1]
 
         # Crop input and target
-
         ps = self.img_opts['patch_size']
         H = clean.shape[1]
         W = clean.shape[2]
@@ -120,10 +117,6 @@ class DataLoaderTrain(Dataset):
         clean = getattr(augment, apply_trans)(clean)
         noisy = getattr(augment, apply_trans)(noisy)        
         mask = getattr(augment, apply_trans)(mask)
-
-        # augmentation: intensity/color
-        clean = augment_color.aug(clean)
-        noisy = augment_color.aug(noisy)
 
         mask = torch.unsqueeze(mask, dim=0)
         return clean, noisy, mask, clean_filename, noisy_filename
