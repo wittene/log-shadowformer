@@ -147,7 +147,8 @@ class DataLoaderVal(Dataset):
             clean_filename=self.dataset_dir.clean_filenames[tar_index],
             noisy_filename=self.dataset_dir.noisy_filenames[tar_index],
             mask_filename=self.dataset_dir.mask_filenames[tar_index],
-            load_opts=self.load_opts
+            load_opts=self.load_opts,
+            color_aug=False
         )
 
         clean = torch.from_numpy(np.float32(clean))

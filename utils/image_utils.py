@@ -129,7 +129,7 @@ def load_imgs(clean_filename, noisy_filename, mask_filename, load_opts: LoadOpti
         
     # apply color augmentation in sRGB space
     if color_aug:
-        [clean, noisy] = COLOR_AUG.aug([clean, noisy])
+        [clean, noisy] = COLOR_AUG.intensity_aug([clean, noisy])
 
     # apply transforms in correct order
     if load_opts.linear_transform:
