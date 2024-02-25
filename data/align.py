@@ -1,5 +1,6 @@
 '''
-Script to align target images to corresponding shadow image
+Script to align target images to corresponding shadow image.
+Saves out a .npz file of transform matrices to transform targets to match shadow images
 Reference: https://learnopencv.com/image-alignment-ecc-in-opencv-c-python/
 '''
 
@@ -11,7 +12,7 @@ import numpy as np
 import cv2
 from torch.utils.data import DataLoader
 
-from utils import LoadOptions, mkdir, get_training_data, get_validation_data, save_img
+from utils import LoadOptions, get_training_data, get_validation_data
 
 ECC_TERMCRIT = (cv2.TERM_CRITERIA_COUNT | cv2.TERM_CRITERIA_EPS, 200,  1e-10)
 
@@ -24,6 +25,7 @@ def torch_to_np(img):
 
 if __name__ == '__main__':
     # example: python -m data.align --input_dir /work/SuperResolutionData/ShadowRemovalData/RawSR_Dataset/raw --dataset RawSR --img_type raw --motion_type affine
+    # example: python -m data.align --input_dir /work/SuperResolutionData/ShadowRemovalData/RawSR_Dataset/compressed --dataset RawSR --img_type sRGB --motion_type affine
 
     # setup
     parser = ArgumentParser()
@@ -61,11 +63,12 @@ if __name__ == '__main__':
 
     # Do alignment
     for mode, dataset in datasets.items():
-        print(f'Aligning {mode} images...')
+        print(f'Computing transforms for {mode} images...')
+
+        out_file = os.path.join(opts.input_dir, f'{opts.motion_type}.npz')
+        out_dict = dict()  # key: shadow filename, val: numpy array with transform matrix
 
         loader = DataLoader(dataset=dataset, batch_size=1, shuffle=False, num_workers=1, drop_last=False)
-        output_dir = os.path.join(opts.input_dir, 'clean-affine')
-        mkdir(output_dir)
         for data in tqdm(loader):
 
             target, shadow, mask, target_fn, shadow_fn = data
@@ -81,18 +84,12 @@ if __name__ == '__main__':
             warp_matrix = np.eye(3, 3, dtype=np.float32) if warp_mode == cv2.MOTION_HOMOGRAPHY else np.eye(2, 3, dtype=np.float32)
             (cc, warp_matrix) = cv2.findTransformECC(shadow_input, target_input, warp_matrix, warp_mode, ECC_TERMCRIT)
 
-            # Apply transform
-            sz = target.shape
-            if warp_mode == cv2.MOTION_HOMOGRAPHY :
-                # Use warpPerspective for Homography
-                target_aligned = cv2.warpPerspective(target, warp_matrix, (sz[1],sz[0]), flags=cv2.INTER_LINEAR + cv2.WARP_INVERSE_MAP)
-            else:
-                # Use warpAffine for Translation, Euclidean and Affine
-                target_aligned = cv2.warpAffine(target, warp_matrix, (sz[1],sz[0]), flags=cv2.INTER_LINEAR + cv2.WARP_INVERSE_MAP)
-
-            # Save
-            # TODO: save out the warp matrices instead, to be used dynamically 
-            save_img(target_aligned, os.path.join(output_dir, shadow_fn[0]))
+            # Store for output
+            out_dict[shadow_fn[0]] = warp_matrix
+        
+        print(f'Saving transforms for {mode} images...')
+        np.save(out_file, out_dict)
+        print(f'Done.\n')
             
 
 
