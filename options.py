@@ -16,6 +16,10 @@ PLOG_DIR = "pseudolog"
 PSEUDO_NO_NORM = "pseudo_no_normf"
 
 VALID_IMG_TYPES = {'srgb', 'raw'}
+VALID_MOTION_TRANSFORMS = {'affine', ''}
+
+
+# Helper classes
 
 class LoadOptions():
     '''Options when loading an image'''
@@ -25,7 +29,7 @@ class LoadOptions():
                  img_type='sRGB',
                  resize=None,
                  linear_transform=False, log_transform=False, log_range=LOG_RANGE,
-                 target_adjust=False):
+                 target_adjust=False, motion_transform=''):
         # Dataset
         self.dataset = dataset
         # Normalization constant
@@ -43,10 +47,13 @@ class LoadOptions():
             self.linear_transform = False  # already linear
         # Flag for log transform
         self.log_transform = log_transform
-        # Flag for target color adjustment
-        self.target_adjust = target_adjust
         # Upper bound for log values
         self.log_range = log_range
+        # Flag for target color adjustment
+        self.target_adjust = target_adjust
+        # Try to load path to motion transforms file
+        assert motion_transform.lower() in VALID_MOTION_TRANSFORMS
+        self.motion_transform = motion_transform.lower()
 
 class OutputOptions():
     '''Options for program output'''
@@ -70,10 +77,33 @@ class OutputOptions():
         # Path to diff images
         self.diffs_dir = os.path.join(self.log_dir, 'diffs')
 
-class TrainOptions():
+
+# Option classes
+
+class ProgramOptions():
+    '''Base class, to build program-specific options'''
+
+    # Static helpers
+
+    def __add_load_args__(parser: argparse.ArgumentParser):
+        parser.add_argument('--dataset', type=str, default='ISTD', help='dataset to use for eval: ISTD, RawSR')
+        parser.add_argument('--img_divisor', type=float, default=PNG_DIVISOR, help='value to scale images to [0, 1]')
+        parser.add_argument('--img_type', type=str, default='sRGB', help='Input image type: sRGB, raw')
+        parser.add_argument('--resize', type=int, default=None, help='Resize longest side to this size, if 0, use original resolution')
+        parser.add_argument('--linear_transform', action='store_true', default=False, help='Transform to pseudolinear') # get pseudolinear data
+        parser.add_argument('--log_transform', action='store_true', default=False, help='Transform to pseudolog')
+        parser.add_argument('--log_range', type=int, default=LOG_RANGE, help='Upper bound of values prior to log transform')
+        parser.add_argument('--target_adjust', action='store_true', default=False, help='Adjust target colors to match ground truth')
+        parser.add_argument('--motion_transform', type=str, default='', help='Type of motion transform to apply to targets, must be pre-computed in dataset directory')
+
+
+
+
+class TrainOptions(ProgramOptions):
     """Options for training"""
 
     def __init__(self, description = None):
+        super(TrainOptions, self).__init__()
         self.__init_parser_args__(description=description)
         self.__init_load_opts__()
         self.__init_output_opts__()
@@ -93,7 +123,6 @@ class TrainOptions():
         parser.add_argument('--nepoch', type=int, default=500, help='training epochs')
         parser.add_argument('--train_workers', type=int, default=1, help='train_dataloader workers')
         parser.add_argument('--eval_workers', type=int, default=1, help='eval_dataloader workers')
-        parser.add_argument('--dataset', type=str, default='ISTD')
         parser.add_argument('--pretrain_weights', type=str, default=None, help='path of pretrained_weights, calculated if unset')
         parser.add_argument('--optimizer', type=str, default='adamw', help='optimizer for training')
         parser.add_argument('--lr_initial', type=float, default=0.0002, help='initial learning rate')  # previous default: 0.01
@@ -136,13 +165,7 @@ class TrainOptions():
         parser.add_argument('--warmup_epochs', type=int, default=3, help='epochs for warmup')
 
         # args for image transforms
-        parser.add_argument('--img_divisor', type=float, default=PNG_DIVISOR, help='value to scale images to [0, 1]') # Just leave it default.
-        parser.add_argument('--img_type', type=str, default='srgb', help='Input image type: srgb, raw')
-        parser.add_argument('--resize', type=int, default=None, help='Resize longest side to this size, if None, use original resolution')
-        parser.add_argument('--linear_transform', action='store_true', default=False, help='Transform to pseudolinear') # get pseudolinear data
-        parser.add_argument('--log_transform', action='store_true', default=False, help='Transform to pseudolog') # must call both flags, --linear_transform and --log_transform
-        parser.add_argument('--log_range', type=int, default=LOG_RANGE, help='Upper bound of values prior to log transform')
-        parser.add_argument('--target_adjust', action='store_true', default=False, help='Adjust target colors to match ground truth')
+        ProgramOptions.__add_load_args__(parser)
 
         # parse arguments and copy into self
         parser.parse_args(namespace=self)
@@ -157,7 +180,8 @@ class TrainOptions():
             linear_transform=self.linear_transform, 
             log_transform=self.log_transform,
             target_adjust=self.target_adjust,
-            log_range=self.log_range
+            log_range=self.log_range,
+            motion_transform=self.motion_transform
         )
         # Ensure consistency
         self.dataset = self.load_opts.dataset
@@ -168,6 +192,7 @@ class TrainOptions():
         self.log_transform = self.load_opts.log_transform
         self.target_adjust = self.load_opts.target_adjust
         self.log_range = self.load_opts.log_range
+        self.motion_transform = self.load_opts.motion_transform
     
     def __init_output_opts__(self):
         '''Subset of options for saving output'''
@@ -186,10 +211,11 @@ class TrainOptions():
         self.save_dir=self.output_opts.save_dir
         self.pretrain_weights=self.output_opts.weights_latest
 
-class TestOptions():
+class TestOptions(ProgramOptions):
     """Options for testing"""
 
     def __init__(self, description = None):
+        super(TestOptions, self).__init__()
         self.__init_parser_args__(description=description)
         self.__init_load_opts__()
         self.__init_output_opts__()
@@ -211,7 +237,6 @@ class TestOptions():
         parser.add_argument('--env', type=str, default='_ISTD', help='env')
         
         # args for eval
-        parser.add_argument('--dataset', type=str, default='ISTD', help='dataset to use for eval: ISTD, RawSR')
         parser.add_argument('--input_dir', default=f'{PNG_DIR}/test', type=str, help='directory of validation images')
         parser.add_argument('--batch_size', default=1, type=int, help='batch size for dataloader')
         parser.add_argument('--tile', type=int, default=None, help='Tile size (e.g 720). None means testing on the original resolution image')
@@ -235,13 +260,7 @@ class TestOptions():
         parser.add_argument('--vit_share', action='store_true', default=False, help='share vit module')
 
         # args for image transforms
-        parser.add_argument('--img_divisor', type=float, default=PNG_DIVISOR, help='value to scale images to [0, 1]')
-        parser.add_argument('--img_type', type=str, default='sRGB', help='Input image type: sRGB, raw')
-        parser.add_argument('--resize', type=int, default=None, help='Resize longest side to this size, if 0, use original resolution')
-        parser.add_argument('--linear_transform', action='store_true', default=False, help='Transform to pseudolinear')
-        parser.add_argument('--log_transform', action='store_true', default=False, help='Transform to pseudolog')
-        parser.add_argument('--log_range', type=int, default=LOG_RANGE, help='Upper bound of values prior to log transform')
-        parser.add_argument('--target_adjust', action='store_true', default=False, help='Adjust target colors to match ground truth')
+        ProgramOptions.__add_load_args__(parser)
 
         # args for output
         parser.add_argument('--save_images', action='store_true', help='Save denoised images in result directory')
@@ -262,7 +281,8 @@ class TestOptions():
             linear_transform=self.linear_transform, 
             log_transform=self.log_transform,
             target_adjust=self.target_adjust,
-            log_range=self.log_range
+            log_range=self.log_range,
+            motion_transform=self.motion_transform
         ))
     
     def __init_output_opts__(self):
@@ -296,6 +316,7 @@ class TestOptions():
         self.log_transform = self.load_opts.log_transform
         self.target_adjust = self.load_opts.target_adjust
         self.log_range = self.load_opts.log_range
+        self.motion_transform = self.load_opts.motion_transform
     
     def update_load_opts(self, 
                       dataset=None,
@@ -305,7 +326,8 @@ class TestOptions():
                       linear_transform=None, 
                       log_transform=None, 
                       target_adjust=None, 
-                      log_range=None
+                      log_range=None,
+                      motion_transform=None,
                       ):
         self.set_load_opts(LoadOptions(
             dataset=dataset if dataset is not None else self.dataset,
@@ -315,6 +337,7 @@ class TestOptions():
             linear_transform=linear_transform if linear_transform is not None else self.linear_transform, 
             log_transform=log_transform if log_transform is not None else self.log_transform,
             target_adjust=target_adjust if target_adjust is not None else self.target_adjust,
-            log_range=log_range if log_range is not None else self.log_range
+            log_range=log_range if log_range is not None else self.log_range,
+            motion_transform=motion_transform if motion_transform is not None else self.motion_transform
         ))
         return self.load_opts

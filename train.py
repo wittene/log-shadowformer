@@ -41,7 +41,8 @@ print(vars(opt))
 output_opts = opt.output_opts
 load_opts = opt.load_opts
 img_opts_train = {
-    'patch_size': opt.train_ps
+    'patch_size': opt.train_ps,
+    'da': True
 }
 
 MAX_VAL = 1 if not load_opts.log_transform else np.log(load_opts.log_range)

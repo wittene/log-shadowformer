@@ -1,15 +1,137 @@
-import numpy as np
 import os
-from torch.utils.data import Dataset
-import torch
-from utils import load_imgs, Augment_RGB_torch, Color_Aug
-from options import LoadOptions
-import torch.nn.functional as F
 import random
+
 import matplotlib.pyplot as plt
+
+import cv2
+import numpy as np
+import torch
+import torch.nn.functional as F
+from torch.utils.data import Dataset
+
+from utils import load_imgs, Augment_RGB_torch, load_npy, Color_Aug, adjust_target_colors, srgb_to_rgb, linear_to_log
+from options import LoadOptions
 
 augment   = Augment_RGB_torch()
 transforms_aug = [method for method in dir(augment) if callable(getattr(augment, method)) if not method.startswith('_')]
+
+##################################################################################################
+class DatasetTransforms():
+    '''Helper for specifying transformations during load (images as np.array)'''
+
+    # STATIC - transforms
+    COLOR_AUG = Color_Aug(img_type=np.array)
+
+    def pad_mask(noisy, mask):
+        '''
+        Pad mask to fit (if loading raw, rgb image may be bigger)
+        '''
+        if mask.shape != noisy.shape[:2]:
+            # Calculate the padding
+            h_diff = noisy.shape[0] - mask.shape[0]
+            w_diff = noisy.shape[1] - mask.shape[1]
+            pad_top = h_diff // 2
+            pad_bottom = h_diff - pad_top
+            pad_left = w_diff // 2
+            pad_right = w_diff - pad_left
+            padding = ((pad_top, pad_bottom), (pad_left, pad_right))
+            # Apply padding
+            mask = np.pad(mask, padding, 'reflect')
+        return mask
+
+    def resize(clean, noisy, mask, size):
+        '''
+        Resize images, maintain aspect ratio
+        '''
+        # get scaling factor using longest side
+        scaling_factor = size / max(noisy.shape[0], noisy.shape[1])
+        # apply
+        clean = cv2.resize(clean, (int(clean.shape[1] * scaling_factor), int(clean.shape[0] * scaling_factor)))
+        noisy = cv2.resize(noisy, (int(noisy.shape[1] * scaling_factor), int(noisy.shape[0] * scaling_factor)))
+        mask  = cv2.resize(mask,  (int(mask.shape[1] * scaling_factor),  int(mask.shape[0] * scaling_factor)))
+        return clean, noisy, mask
+    
+    def motion_transform(clean, motion_transform_map):
+        '''
+        Load and apply motion transform to target
+        '''
+        pass
+
+    def color_augmentation(clean, noisy, intensity=True, color=False):
+        '''
+        Apply color augmentation in sRGB space
+        '''
+        if intensity and color:
+            [clean, noisy] = DatasetTransforms.COLOR_AUG.aug([clean, noisy])
+        elif intensity:
+            [clean, noisy] = DatasetTransforms.COLOR_AUG.intensity_aug([clean, noisy])
+        elif color:
+            [clean, noisy] = DatasetTransforms.COLOR_AUG.color_aug([clean, noisy])
+        return clean, noisy
+    
+    def adjust_target(clean, noisy, mask):
+        '''
+        Adjust target colors
+        '''
+        return adjust_target_colors(clean, noisy, mask)
+
+    def linlog_transform(clean, noisy, linear_transform=False, log_transform=False, log_range=65535):
+        '''
+        Convert to linear or log
+        '''
+        if linear_transform:
+            clean = srgb_to_rgb(clean)
+            noisy = srgb_to_rgb(noisy)
+        if log_transform:
+            clean = linear_to_log(clean, log_range=log_range)
+            noisy = linear_to_log(noisy, log_range=log_range)
+        return clean, noisy
+
+
+    # Construct
+    
+    def __init__(self, load_opts: LoadOptions = LoadOptions()) -> None:
+        self.load_opts = load_opts
+        self.intensity_aug = None
+        self.color_aug = None
+        self.motion_transform_map = None
+    
+    def with_color_aug(self, intensity, color):
+        self.intensity_aug = intensity
+        self.color_aug = color
+        return self
+    
+    def with_motion(self, motion_transform_map):
+        self.motion_transform_map = motion_transform_map
+        return self
+
+    
+    # Apply
+
+    def __call__(self, clean: np.array, noisy: np.array, mask: np.array) -> tuple:
+        '''
+        Apply the transforms
+        '''
+        mask = DatasetTransforms.pad_mask(noisy, mask)
+        if self.load_opts.resize is not None:
+            clean, noisy, mask = DatasetTransforms.resize(clean, noisy, mask, 
+                                                          size=self.load_opts.resize)
+        if self.motion_transform_map is not None:
+            clean = DatasetTransforms.motion_transform(clean, 
+                                                       self.motion_transform_map)
+        if self.intensity_aug or self.color_aug:
+            [clean, noisy] = DatasetTransforms.color_augmentation(clean, noisy, 
+                                                                  intensity=self.intensity_aug, 
+                                                                  color=self.color_aug)
+        if self.load_opts.linear_transform or self.load_opts.log_transform:
+            if self.load_opts.log_transform and not (self.load_opts.img_type != 'srgb' or self.load_opts.linear_transform):
+                raise Exception("Cannot perform a log transform on sRGB image without a linear transform first.")
+            clean, noisy = DatasetTransforms.linlog_transform(clean, noisy, 
+                                                 linear_transform=self.load_opts.linear_transform, 
+                                                 log_transform=self.load_opts.log_transform, 
+                                                 log_range=self.load_opts.log_range)
+        return clean, noisy, mask
+
 
 ##################################################################################################
 class DatasetDirectory():
@@ -40,14 +162,11 @@ class DatasetDirectory():
             self.mask_dir = 'mask'
         
         # Sort and set filenames
-        if dataset == 'ISTD':
-            clean_files = sorted(os.listdir(os.path.join(base_dir, self.gt_dir)))
-            noisy_files = sorted(os.listdir(os.path.join(base_dir, self.input_dir)))
-            mask_files = sorted(os.listdir(os.path.join(base_dir, self.mask_dir)))
-        elif 'RawSR' in dataset:
-            noisy_files = sorted(os.listdir(os.path.join(base_dir, self.input_dir)))
+        clean_files = sorted(os.listdir(os.path.join(base_dir, self.gt_dir)))
+        noisy_files = sorted(os.listdir(os.path.join(base_dir, self.input_dir)))
+        mask_files = sorted(os.listdir(os.path.join(base_dir, self.mask_dir)))
+        if 'RawSR' in dataset:
             clean_files = [f"{x.split('-')[0]}-1.{x.split('.')[-1]}" for x in noisy_files]  # 1-N relation between noisy and clean files
-            mask_files = sorted(os.listdir(os.path.join(base_dir, self.mask_dir)))
         
         self.clean_filenames = [os.path.join(base_dir, self.gt_dir, x) for x in clean_files]
         self.noisy_filenames = [os.path.join(base_dir, self.input_dir, x) for x in noisy_files]
@@ -58,18 +177,26 @@ class DatasetDirectory():
 class DataLoaderTrain(Dataset):
     def __init__(self, base_dir, load_opts: LoadOptions = LoadOptions(), img_opts=None):
         super(DataLoaderTrain, self).__init__()
-        
-        # Set up dataset
-        self.dataset_dir = DatasetDirectory(base_dir=base_dir, dataset=load_opts.dataset, mode='train')
 
+        # Load options
+        self.load_opts = load_opts
         # Options for processing the images, e.g. patch size
         self.img_opts = img_opts
+        
+        # Set up dataset
+        self.dataset_dir = DatasetDirectory(base_dir=base_dir, dataset=self.load_opts.dataset, mode='train')
 
         # Number of targets, size of dataset
         self.tar_size = len(self.dataset_dir.clean_filenames)
 
-        # Load options
-        self.load_opts = load_opts
+        # Set up data transforms
+        self.patch_flag = 'patch_size' in self.img_opts
+        self.da_flag = 'da' in self.img_opts and bool(self.img_opts['da']) == True
+        self.data_transforms: DatasetTransforms = DatasetTransforms(self.load_opts).with_color_aug(intensity=self.da_flag)
+        if load_opts.motion_transform:
+            self.data_transforms = self.data_transforms.with_motion(
+                load_npy(os.path.join(self.dataset_dir.base_dir, f'{load_opts.motion_transform}.npy')).item()
+            )
 
     def __len__(self):
         return self.tar_size
@@ -82,7 +209,8 @@ class DataLoaderTrain(Dataset):
             clean_filename=self.dataset_dir.clean_filenames[tar_index],
             noisy_filename=self.dataset_dir.noisy_filenames[tar_index],
             mask_filename=self.dataset_dir.mask_filenames[tar_index],
-            load_opts=self.load_opts
+            load_opts=self.load_opts,
+            data_transforms=self.data_transforms
         )
 
         clean = torch.from_numpy(np.float32(clean))
@@ -97,26 +225,22 @@ class DataLoaderTrain(Dataset):
         mask_filename = os.path.split(self.dataset_dir.mask_filenames[tar_index])[-1]
 
         # Crop input and target
-        ps = self.img_opts['patch_size']
-        H = clean.shape[1]
-        W = clean.shape[2]
-        # r = np.random.randint(0, H - ps) if not H-ps else 0
-        # c = np.random.randint(0, W - ps) if not H-ps else 0
-        if H-ps==0:
-            r=0
-            c=0
-        else:
-            r = np.random.randint(0, H - ps)
-            c = np.random.randint(0, W - ps)
-        clean = clean[:, r:r + ps, c:c + ps]
-        noisy = noisy[:, r:r + ps, c:c + ps]
-        mask = mask[r:r + ps, c:c + ps]
+        if self.patch_flag:
+            ps = self.img_opts['patch_size']
+            H = clean.shape[1]
+            W = clean.shape[2]
+            r = np.random.randint(0, H - ps) if not H-ps else 0
+            c = np.random.randint(0, W - ps) if not H-ps else 0
+            clean = clean[:, r:r + ps, c:c + ps]
+            noisy = noisy[:, r:r + ps, c:c + ps]
+            mask = mask[r:r + ps, c:c + ps]
 
         # augmentation: geometric transformation
-        apply_trans = transforms_aug[random.getrandbits(3)]
-        clean = getattr(augment, apply_trans)(clean)
-        noisy = getattr(augment, apply_trans)(noisy)        
-        mask = getattr(augment, apply_trans)(mask)
+        if self.da_flag:
+            apply_trans = transforms_aug[random.getrandbits(3)]
+            clean = getattr(augment, apply_trans)(clean)
+            noisy = getattr(augment, apply_trans)(noisy)        
+            mask = getattr(augment, apply_trans)(mask)
 
         mask = torch.unsqueeze(mask, dim=0)
         return clean, noisy, mask, clean_filename, noisy_filename
@@ -126,15 +250,22 @@ class DataLoaderVal(Dataset):
     def __init__(self, base_dir, load_opts: LoadOptions = LoadOptions(), random_patch: int = None):
         super(DataLoaderVal, self).__init__()
 
+        # Load options
+        self.load_opts = load_opts
+        self.random_patch = random_patch  # randomly crops image to a square patch of this size, if set
+
         # Set up dataset
         self.dataset_dir = DatasetDirectory(base_dir=base_dir, dataset=load_opts.dataset, mode='test')
 
         # Number of targets, size of dataset
         self.tar_size = len(self.dataset_dir.clean_filenames)
 
-        # Load options
-        self.load_opts = load_opts
-        self.random_patch = random_patch  # randomly crops image to a square patch of this size, if set
+        # Set up data transforms
+        self.data_transforms: DatasetTransforms = DatasetTransforms(self.load_opts)
+        if load_opts.motion_transform:
+            self.data_transforms = self.data_transforms.with_motion(
+                load_npy(os.path.join(self.dataset_dir.base_dir, f'{load_opts.motion_transform}.npy')).item()
+            )
 
     def __len__(self):
         return self.tar_size
@@ -148,7 +279,7 @@ class DataLoaderVal(Dataset):
             noisy_filename=self.dataset_dir.noisy_filenames[tar_index],
             mask_filename=self.dataset_dir.mask_filenames[tar_index],
             load_opts=self.load_opts,
-            color_aug=False
+            data_transforms=self.data_transforms
         )
 
         clean = torch.from_numpy(np.float32(clean))

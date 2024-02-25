@@ -7,10 +7,6 @@ from skimage.color import rgb2lab
 import matplotlib.pyplot as plt
 from options import LoadOptions
 
-from .pseudo_utils import linear_to_log, srgb_to_rgb
-from .dataset_utils import adjust_target_colors, Color_Aug
-COLOR_AUG = Color_Aug(img_type=np.array)
-
 
 
 
@@ -90,7 +86,7 @@ def load_npy(filepath):
     img = np.load(filepath)
     return img
 
-def load_imgs(clean_filename, noisy_filename, mask_filename, load_opts: LoadOptions = LoadOptions(), color_aug: bool = True):
+def load_imgs(clean_filename, noisy_filename, mask_filename, load_opts: LoadOptions = LoadOptions(), data_transforms = None):
     '''Load the shadow, non-shadow, and mask images -- with chosen transforms'''
 
     # load files -- np.array with shape (H, W, C)
@@ -105,44 +101,8 @@ def load_imgs(clean_filename, noisy_filename, mask_filename, load_opts: LoadOpti
     noisy = load_img(noisy_filename)
     mask  = load_mask(mask_filename)
 
-    # pad mask to fit (if loading raw, rgb image may be bigger)
-    if mask.shape != noisy.shape[:2]:
-        # Calculate the padding
-        h_diff = noisy.shape[0] - mask.shape[0]
-        w_diff = noisy.shape[1] - mask.shape[1]
-        pad_top = h_diff // 2
-        pad_bottom = h_diff - pad_top
-        pad_left = w_diff // 2
-        pad_right = w_diff - pad_left
-        padding = ((pad_top, pad_bottom), (pad_left, pad_right))
-        # Apply padding
-        mask = np.pad(mask, padding, 'reflect')
-    
-    # resize
-    if load_opts.resize is not None:
-        # get scaling factor using longest side
-        scaling_factor = load_opts.resize / max(noisy.shape[0], noisy.shape[1])
-        # apply
-        clean = cv2.resize(clean, (int(clean.shape[1] * scaling_factor), int(clean.shape[0] * scaling_factor)))
-        noisy = cv2.resize(noisy, (int(noisy.shape[1] * scaling_factor), int(noisy.shape[0] * scaling_factor)))
-        mask  = cv2.resize(mask,  (int(mask.shape[1] * scaling_factor),  int(mask.shape[0] * scaling_factor)))
-        
-    # apply color augmentation in sRGB space
-    if color_aug:
-        [clean, noisy] = COLOR_AUG.intensity_aug([clean, noisy])
-
-    # apply transforms in correct order
-    if load_opts.linear_transform:
-        clean = srgb_to_rgb(clean)
-        noisy = srgb_to_rgb(noisy)
-    if load_opts.target_adjust:
-        clean = adjust_target_colors(clean, noisy, mask)
-    if load_opts.log_transform:
-        if not (load_opts.img_type != 'srgb' or load_opts.linear_transform):
-            raise Exception("Cannot perform a log transform on sRGB image without a linear transform first.")
-        else:
-            clean = linear_to_log(clean, log_range=load_opts.log_range)
-            noisy = linear_to_log(noisy, log_range=load_opts.log_range)
+    if data_transforms is not None:
+        clean, noisy, mask = data_transforms(clean, noisy, mask)
     
     return clean, noisy, mask
 
