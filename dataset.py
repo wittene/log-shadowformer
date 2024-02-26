@@ -132,6 +132,8 @@ class DatasetTransforms():
         Apply the transforms
         '''
         mask = DatasetTransforms.pad_mask(noisy, mask)
+        if self.load_opts.target_adjust:
+            clean = DatasetTransforms.adjust_target(clean, noisy, mask)
         if self.motion_matrix is not None:
             clean = DatasetTransforms.motion_transform(clean, 
                                                        self.motion_matrix)
