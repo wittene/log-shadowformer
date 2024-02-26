@@ -46,16 +46,22 @@ class DatasetTransforms():
         # get scaling factor using longest side
         scaling_factor = size / max(noisy.shape[0], noisy.shape[1])
         # apply
-        clean = cv2.resize(clean, (int(clean.shape[1] * scaling_factor), int(clean.shape[0] * scaling_factor)))
-        noisy = cv2.resize(noisy, (int(noisy.shape[1] * scaling_factor), int(noisy.shape[0] * scaling_factor)))
-        mask  = cv2.resize(mask,  (int(mask.shape[1] * scaling_factor),  int(mask.shape[0] * scaling_factor)))
+        clean = cv2.resize(clean, (int(clean.shape[1] * scaling_factor), int(clean.shape[0] * scaling_factor)), interpolation=cv2.INTER_AREA)
+        noisy = cv2.resize(noisy, (int(noisy.shape[1] * scaling_factor), int(noisy.shape[0] * scaling_factor)), interpolation=cv2.INTER_AREA)
+        mask  = cv2.resize(mask,  (int(mask.shape[1] * scaling_factor),  int(mask.shape[0] * scaling_factor)), interpolation=cv2.INTER_AREA)
         return clean, noisy, mask
     
-    def motion_transform(clean, motion_transform_map):
+    def motion_transform(clean, motion_matrix):
         '''
-        Load and apply motion transform to target
+        Apply motion transform to target
         '''
-        pass
+        sz = clean.shape
+        if motion_matrix.shape == (3,3):
+            # Use warpPerspective for Homography
+            return cv2.warpPerspective(clean, motion_matrix, (sz[1],sz[0]), flags=cv2.INTER_LINEAR + cv2.WARP_INVERSE_MAP)
+        else:
+            # Use warpAffine for Translation, Euclidean and Affine
+            return cv2.warpAffine(clean, motion_matrix, (sz[1],sz[0]), flags=cv2.INTER_LINEAR + cv2.WARP_INVERSE_MAP)
 
     def color_augmentation(clean, noisy, intensity=True, color=False):
         '''
@@ -90,20 +96,33 @@ class DatasetTransforms():
 
     # Construct
     
-    def __init__(self, load_opts: LoadOptions = LoadOptions()) -> None:
+    def __init__(self, load_opts: LoadOptions = LoadOptions(), intensity_aug = None, color_aug = None, motion_matrix = None) -> None:
         self.load_opts = load_opts
-        self.intensity_aug = None
-        self.color_aug = None
-        self.motion_transform_map = None
+        self.intensity_aug = intensity_aug
+        self.color_aug = color_aug
+        self.motion_matrix = motion_matrix
     
     def with_color_aug(self, intensity, color):
-        self.intensity_aug = intensity
-        self.color_aug = color
-        return self
+        '''
+        Returns a copy with new color aug settings
+        '''
+        return DatasetTransforms(
+            load_opts=self.load_opts,
+            intensity_aug=intensity,
+            color_aug=color,
+            motion_matrix=self.motion_matrix
+        )
     
-    def with_motion(self, motion_transform_map):
-        self.motion_transform_map = motion_transform_map
-        return self
+    def with_motion(self, motion_matrix):
+        '''
+        Return a copy with set transformation matrix to use, changed with each image
+        '''
+        return DatasetTransforms(
+            load_opts=self.load_opts,
+            intensity_aug=self.intensity_aug,
+            color_aug=self.color_aug,
+            motion_matrix=motion_matrix
+        )
 
     
     # Apply
@@ -113,12 +132,12 @@ class DatasetTransforms():
         Apply the transforms
         '''
         mask = DatasetTransforms.pad_mask(noisy, mask)
+        if self.motion_matrix is not None:
+            clean = DatasetTransforms.motion_transform(clean, 
+                                                       self.motion_matrix)
         if self.load_opts.resize is not None:
             clean, noisy, mask = DatasetTransforms.resize(clean, noisy, mask, 
                                                           size=self.load_opts.resize)
-        if self.motion_transform_map is not None:
-            clean = DatasetTransforms.motion_transform(clean, 
-                                                       self.motion_transform_map)
         if self.intensity_aug or self.color_aug:
             [clean, noisy] = DatasetTransforms.color_augmentation(clean, noisy, 
                                                                   intensity=self.intensity_aug, 
@@ -192,11 +211,11 @@ class DataLoaderTrain(Dataset):
         # Set up data transforms
         self.patch_flag = 'patch_size' in self.img_opts
         self.da_flag = 'da' in self.img_opts and bool(self.img_opts['da']) == True
-        self.data_transforms: DatasetTransforms = DatasetTransforms(self.load_opts).with_color_aug(intensity=self.da_flag)
+        self.data_transforms: DatasetTransforms = DatasetTransforms(self.load_opts)
         if load_opts.motion_transform:
-            self.data_transforms = self.data_transforms.with_motion(
-                load_npy(os.path.join(self.dataset_dir.base_dir, f'{load_opts.motion_transform}.npy')).item()
-            )
+            self.motion_transform_map: dict = load_npy(os.path.join(self.dataset_dir.base_dir, f'{load_opts.motion_transform}.npy')).item()
+        else:
+            self.motion_transform_map = None
 
     def __len__(self):
         return self.tar_size
@@ -205,12 +224,15 @@ class DataLoaderTrain(Dataset):
         tar_index   = index % self.tar_size
 
         # Load images
+        curr_data_transforms = self.data_transforms.with_color_aug(intensity=self.da_flag, color=False)
+        if self.motion_transform_map is not None:
+            curr_data_transforms = curr_data_transforms.with_motion(self.motion_transform_map[os.path.split(self.dataset_dir.noisy_filenames[tar_index])[-1]])
         clean, noisy, mask = load_imgs(
             clean_filename=self.dataset_dir.clean_filenames[tar_index],
             noisy_filename=self.dataset_dir.noisy_filenames[tar_index],
             mask_filename=self.dataset_dir.mask_filenames[tar_index],
             load_opts=self.load_opts,
-            data_transforms=self.data_transforms
+            data_transforms=curr_data_transforms
         )
 
         clean = torch.from_numpy(np.float32(clean))
@@ -263,9 +285,9 @@ class DataLoaderVal(Dataset):
         # Set up data transforms
         self.data_transforms: DatasetTransforms = DatasetTransforms(self.load_opts)
         if load_opts.motion_transform:
-            self.data_transforms = self.data_transforms.with_motion(
-                load_npy(os.path.join(self.dataset_dir.base_dir, f'{load_opts.motion_transform}.npy')).item()
-            )
+            self.motion_transform_map: dict = load_npy(os.path.join(self.dataset_dir.base_dir, f'{load_opts.motion_transform}.npy')).item()
+        else:
+            self.motion_transform_map = None
 
     def __len__(self):
         return self.tar_size
@@ -274,6 +296,9 @@ class DataLoaderVal(Dataset):
         tar_index   = index % self.tar_size
 
         # Load images
+        curr_data_transforms = self.data_transforms.with_color_aug(intensity=False, color=False)
+        if self.motion_transform_map is not None:
+            curr_data_transforms = curr_data_transforms.with_motion(self.motion_transform_map[os.path.split(self.dataset_dir.noisy_filenames[tar_index])[-1]])
         clean, noisy, mask = load_imgs(
             clean_filename=self.dataset_dir.clean_filenames[tar_index],
             noisy_filename=self.dataset_dir.noisy_filenames[tar_index],

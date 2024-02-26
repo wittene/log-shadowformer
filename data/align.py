@@ -65,7 +65,7 @@ if __name__ == '__main__':
     for mode, dataset in datasets.items():
         print(f'Computing transforms for {mode} images...')
 
-        out_file = os.path.join(opts.input_dir, f'{opts.motion_type}.npz')
+        out_file = os.path.join(opts.input_dir, f'{opts.motion_type}')
         out_dict = dict()  # key: shadow filename, val: numpy array with transform matrix
 
         loader = DataLoader(dataset=dataset, batch_size=1, shuffle=False, num_workers=1, drop_last=False)

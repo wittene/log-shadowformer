@@ -83,7 +83,7 @@ def save_dict(dict_, filename_):
         pickle.dump(dict_, f)    
 
 def load_npy(filepath):
-    img = np.load(filepath)
+    img = np.load(filepath, allow_pickle=True)
     return img
 
 def load_imgs(clean_filename, noisy_filename, mask_filename, load_opts: LoadOptions = LoadOptions(), data_transforms = None):
