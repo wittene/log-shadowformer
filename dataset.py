@@ -63,12 +63,12 @@ class DatasetTransforms():
             # Use warpAffine for Translation, Euclidean and Affine
             return cv2.warpAffine(clean, motion_matrix, (sz[1],sz[0]), flags=cv2.INTER_LINEAR + cv2.WARP_INVERSE_MAP)
 
-    def color_augmentation(clean, noisy, intensity=True, color=False):
+    def color_augmentation(clean, noisy, intensity=True, color=False, randomize=False):
         '''
         Apply color augmentation in sRGB space
         '''
         if intensity and color:
-            [clean, noisy] = DatasetTransforms.COLOR_AUG.aug([clean, noisy])
+            [clean, noisy] = DatasetTransforms.COLOR_AUG.aug([clean, noisy], random_apply=randomize)
         elif intensity:
             [clean, noisy] = DatasetTransforms.COLOR_AUG.intensity_aug([clean, noisy])
         elif color:
@@ -96,13 +96,14 @@ class DatasetTransforms():
 
     # Construct
     
-    def __init__(self, load_opts: LoadOptions = LoadOptions(), intensity_aug = None, color_aug = None, motion_matrix = None) -> None:
+    def __init__(self, load_opts: LoadOptions = LoadOptions(), intensity_aug = None, color_aug = None, randomize_aug = False, motion_matrix = None) -> None:
         self.load_opts = load_opts
         self.intensity_aug = intensity_aug
         self.color_aug = color_aug
+        self.randomize_aug = randomize_aug
         self.motion_matrix = motion_matrix
     
-    def with_color_aug(self, intensity, color):
+    def with_color_aug(self, intensity, color, randomize=False):
         '''
         Returns a copy with new color aug settings
         '''
@@ -110,6 +111,7 @@ class DatasetTransforms():
             load_opts=self.load_opts,
             intensity_aug=intensity,
             color_aug=color,
+            randomize_aug=randomize,
             motion_matrix=self.motion_matrix
         )
     
@@ -121,6 +123,7 @@ class DatasetTransforms():
             load_opts=self.load_opts,
             intensity_aug=self.intensity_aug,
             color_aug=self.color_aug,
+            randomize_aug=self.randomize_aug,
             motion_matrix=motion_matrix
         )
 
@@ -143,7 +146,8 @@ class DatasetTransforms():
         if self.intensity_aug or self.color_aug:
             [clean, noisy] = DatasetTransforms.color_augmentation(clean, noisy, 
                                                                   intensity=self.intensity_aug, 
-                                                                  color=self.color_aug)
+                                                                  color=self.color_aug,
+                                                                  randomize=self.randomize_aug)
         if self.load_opts.linear_transform or self.load_opts.log_transform:
             if self.load_opts.log_transform and not (self.load_opts.img_type != 'srgb' or self.load_opts.linear_transform):
                 raise Exception("Cannot perform a log transform on sRGB image without a linear transform first.")
@@ -226,7 +230,7 @@ class DataLoaderTrain(Dataset):
         tar_index   = index % self.tar_size
 
         # Load images
-        curr_data_transforms = self.data_transforms.with_color_aug(intensity=self.da_flag, color=False)
+        curr_data_transforms = self.data_transforms.with_color_aug(intensity=self.da_flag, color=self.da_flag)
         if self.motion_transform_map is not None:
             curr_data_transforms = curr_data_transforms.with_motion(self.motion_transform_map[os.path.split(self.dataset_dir.noisy_filenames[tar_index])[-1]])
         clean, noisy, mask = load_imgs(
