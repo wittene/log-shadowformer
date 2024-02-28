@@ -44,7 +44,7 @@ if __name__ == '__main__':
     
     # data
     datasets = {
-        # 'train': get_training_data(opts.input_dir, load_opts=load_opts, img_opts={'patch_size': None, 'da': True}),
+        # 'train': get_training_data(opts.input_dir, load_opts=load_opts),
         'test': get_validation_data(opts.input_dir, load_opts=load_opts),
     }
 

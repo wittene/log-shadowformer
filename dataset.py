@@ -9,7 +9,7 @@ import torch
 import torch.nn.functional as F
 from torch.utils.data import Dataset
 
-from utils import load_imgs, Augment_RGB_torch, load_npy, Color_Aug, adjust_target_colors, srgb_to_rgb, linear_to_log
+from utils import load_imgs, Augment_RGB_torch, load_npy, Color_Aug, adjust_target_colors, srgb_to_rgb, linear_to_log, apply_srgb
 from options import LoadOptions
 
 augment   = Augment_RGB_torch()
@@ -63,12 +63,12 @@ class DatasetTransforms():
             # Use warpAffine for Translation, Euclidean and Affine
             return cv2.warpAffine(clean, motion_matrix, (sz[1],sz[0]), flags=cv2.INTER_LINEAR + cv2.WARP_INVERSE_MAP)
 
-    def color_augmentation(clean, noisy, intensity=True, color=False, randomize=False):
+    def color_augmentation(clean, noisy, intensity=True, color=False):
         '''
         Apply color augmentation in sRGB space
         '''
         if intensity and color:
-            [clean, noisy] = DatasetTransforms.COLOR_AUG.aug([clean, noisy], random_apply=randomize)
+            [clean, noisy] = DatasetTransforms.COLOR_AUG.aug([clean, noisy])
         elif intensity:
             [clean, noisy] = DatasetTransforms.COLOR_AUG.intensity_aug([clean, noisy])
         elif color:
@@ -81,29 +81,34 @@ class DatasetTransforms():
         '''
         return adjust_target_colors(clean, noisy, mask)
 
-    def linlog_transform(clean, noisy, linear_transform=False, log_transform=False, log_range=65535):
+    def srgb_transform(clean, noisy):
         '''
-        Convert to linear or log
+        Convert linear to sRGB
         '''
-        if linear_transform:
-            clean = srgb_to_rgb(clean)
-            noisy = srgb_to_rgb(noisy)
-        if log_transform:
-            clean = linear_to_log(clean, log_range=log_range)
-            noisy = linear_to_log(noisy, log_range=log_range)
-        return clean, noisy
+        return apply_srgb(clean), apply_srgb(noisy)
+    
+    def linear_transform(clean, noisy):
+        '''
+        Convert sRGB to linear
+        '''
+        return srgb_to_rgb(clean), srgb_to_rgb(noisy)
+
+    def log_transform(clean, noisy, log_range=65535):
+        '''
+        Convert linear to log
+        '''
+        return linear_to_log(clean, log_range=log_range), linear_to_log(noisy, log_range=log_range)
 
 
     # Construct
     
-    def __init__(self, load_opts: LoadOptions = LoadOptions(), intensity_aug = None, color_aug = None, randomize_aug = False, motion_matrix = None) -> None:
+    def __init__(self, load_opts: LoadOptions = LoadOptions(), intensity_aug = None, color_aug = None, motion_matrix = None) -> None:
         self.load_opts = load_opts
         self.intensity_aug = intensity_aug
         self.color_aug = color_aug
-        self.randomize_aug = randomize_aug
         self.motion_matrix = motion_matrix
     
-    def with_color_aug(self, intensity, color, randomize=False):
+    def with_color_aug(self, intensity, color):
         '''
         Returns a copy with new color aug settings
         '''
@@ -111,7 +116,6 @@ class DatasetTransforms():
             load_opts=self.load_opts,
             intensity_aug=intensity,
             color_aug=color,
-            randomize_aug=randomize,
             motion_matrix=self.motion_matrix
         )
     
@@ -123,7 +127,6 @@ class DatasetTransforms():
             load_opts=self.load_opts,
             intensity_aug=self.intensity_aug,
             color_aug=self.color_aug,
-            randomize_aug=self.randomize_aug,
             motion_matrix=motion_matrix
         )
 
@@ -134,27 +137,34 @@ class DatasetTransforms():
         '''
         Apply the transforms
         '''
+
+        # geometric operations
         mask = DatasetTransforms.pad_mask(noisy, mask)
-        if self.load_opts.target_adjust:
-            clean = DatasetTransforms.adjust_target(clean, noisy, mask)
         if self.motion_matrix is not None:
             clean = DatasetTransforms.motion_transform(clean, 
                                                        self.motion_matrix)
         if self.load_opts.resize is not None:
             clean, noisy, mask = DatasetTransforms.resize(clean, noisy, mask, 
                                                           size=self.load_opts.resize)
+        
+        # color adjustments in linear space
+        if self.load_opts.img_type == 'srgb':
+            clean, noisy = DatasetTransforms.linear_transform(clean, noisy)
+        if self.load_opts.target_adjust:
+            clean = DatasetTransforms.adjust_target(clean, noisy, mask)
         if self.intensity_aug or self.color_aug:
             [clean, noisy] = DatasetTransforms.color_augmentation(clean, noisy, 
                                                                   intensity=self.intensity_aug, 
-                                                                  color=self.color_aug,
-                                                                  randomize=self.randomize_aug)
-        if self.load_opts.linear_transform or self.load_opts.log_transform:
-            if self.load_opts.log_transform and not (self.load_opts.img_type != 'srgb' or self.load_opts.linear_transform):
-                raise Exception("Cannot perform a log transform on sRGB image without a linear transform first.")
-            clean, noisy = DatasetTransforms.linlog_transform(clean, noisy, 
-                                                 linear_transform=self.load_opts.linear_transform, 
-                                                 log_transform=self.load_opts.log_transform, 
-                                                 log_range=self.load_opts.log_range)
+                                                                  color=self.color_aug)
+        
+        # linear/log transforms - already in linear space, so convert to sRGB or log
+        if not self.load_opts.linear_transform and not self.load_opts.log_transform:
+            # convert back to srgb
+            clean, noisy = DatasetTransforms.srgb_transform(clean, noisy)
+        elif self.load_opts.log_transform:
+            # convert linear to log
+            clean, noisy = DatasetTransforms.log_transform(clean, noisy, log_range=self.load_opts.log_range)
+        
         return clean, noisy, mask
 
 
@@ -200,13 +210,11 @@ class DatasetDirectory():
 
 ##################################################################################################
 class DataLoaderTrain(Dataset):
-    def __init__(self, base_dir, load_opts: LoadOptions = LoadOptions(), img_opts=None):
+    def __init__(self, base_dir, load_opts: LoadOptions = LoadOptions()):
         super(DataLoaderTrain, self).__init__()
 
         # Load options
         self.load_opts = load_opts
-        # Options for processing the images, e.g. patch size
-        self.img_opts = img_opts
         
         # Set up dataset
         self.dataset_dir = DatasetDirectory(base_dir=base_dir, dataset=self.load_opts.dataset, mode='train')
@@ -215,8 +223,6 @@ class DataLoaderTrain(Dataset):
         self.tar_size = len(self.dataset_dir.clean_filenames)
 
         # Set up data transforms
-        self.patch_flag = 'patch_size' in self.img_opts
-        self.da_flag = 'da' in self.img_opts and bool(self.img_opts['da']) == True
         self.data_transforms: DatasetTransforms = DatasetTransforms(self.load_opts)
         if load_opts.motion_transform:
             self.motion_transform_map: dict = load_npy(os.path.join(self.dataset_dir.base_dir, f'{load_opts.motion_transform}.npy')).item()
@@ -230,7 +236,7 @@ class DataLoaderTrain(Dataset):
         tar_index   = index % self.tar_size
 
         # Load images
-        curr_data_transforms = self.data_transforms.with_color_aug(intensity=self.da_flag, color=self.da_flag)
+        curr_data_transforms = self.data_transforms.with_color_aug(intensity=self.load_opts.intensity_aug, color=self.load_opts.color_balance_aug)
         if self.motion_transform_map is not None:
             curr_data_transforms = curr_data_transforms.with_motion(self.motion_transform_map[os.path.split(self.dataset_dir.noisy_filenames[tar_index])[-1]])
         clean, noisy, mask = load_imgs(
@@ -253,8 +259,8 @@ class DataLoaderTrain(Dataset):
         mask_filename = os.path.split(self.dataset_dir.mask_filenames[tar_index])[-1]
 
         # Crop input and target
-        if self.patch_flag:
-            ps = self.img_opts['patch_size']
+        if self.load_opts.patch_size:
+            ps = self.load_opts.patch_size
             H = clean.shape[1]
             W = clean.shape[2]
             r = np.random.randint(0, H - ps) if not H-ps else 0
@@ -264,11 +270,10 @@ class DataLoaderTrain(Dataset):
             mask = mask[r:r + ps, c:c + ps]
 
         # augmentation: geometric transformation
-        if self.da_flag:
-            apply_trans = transforms_aug[random.getrandbits(3)]
-            clean = getattr(augment, apply_trans)(clean)
-            noisy = getattr(augment, apply_trans)(noisy)        
-            mask = getattr(augment, apply_trans)(mask)
+        apply_trans = transforms_aug[random.getrandbits(3)]
+        clean = getattr(augment, apply_trans)(clean)
+        noisy = getattr(augment, apply_trans)(noisy)        
+        mask = getattr(augment, apply_trans)(mask)
 
         mask = torch.unsqueeze(mask, dim=0)
         return clean, noisy, mask, clean_filename, noisy_filename
@@ -302,7 +307,7 @@ class DataLoaderVal(Dataset):
         tar_index   = index % self.tar_size
 
         # Load images
-        curr_data_transforms = self.data_transforms.with_color_aug(intensity=False, color=False)
+        curr_data_transforms = self.data_transforms.with_color_aug(intensity=self.load_opts.intensity_aug, color=self.load_opts.color_balance_aug)
         if self.motion_transform_map is not None:
             curr_data_transforms = curr_data_transforms.with_motion(self.motion_transform_map[os.path.split(self.dataset_dir.noisy_filenames[tar_index])[-1]])
         clean, noisy, mask = load_imgs(

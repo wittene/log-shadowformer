@@ -27,9 +27,9 @@ class LoadOptions():
                  dataset='ISTD', 
                  divisor=PNG_DIVISOR, 
                  img_type='sRGB',
-                 resize=None,
+                 resize=None, patch_size=None,
                  linear_transform=False, log_transform=False, log_range=LOG_RANGE,
-                 target_adjust=False, motion_transform=''):
+                 color_balance_aug=False, intensity_aug=False, target_adjust=False, motion_transform=''):
         # Dataset
         self.dataset = dataset
         # Normalization constant
@@ -41,6 +41,8 @@ class LoadOptions():
         self.resize = resize
         if self.resize is not None and self.resize < 64:
             self.resize = None
+        # Training patch size
+        self.patch_size = patch_size
         # Flag for linear transform
         self.linear_transform = linear_transform
         if self.img_type == 'raw':
@@ -49,7 +51,9 @@ class LoadOptions():
         self.log_transform = log_transform
         # Upper bound for log values
         self.log_range = log_range
-        # Flag for target color adjustment
+        # Flags for color adjustments
+        self.color_balance_aug = color_balance_aug
+        self.intensity_aug = intensity_aug
         self.target_adjust = target_adjust
         # Try to load path to motion transforms file
         assert motion_transform.lower() in VALID_MOTION_TRANSFORMS
@@ -90,9 +94,12 @@ class ProgramOptions():
         parser.add_argument('--img_divisor', type=float, default=PNG_DIVISOR, help='value to scale images to [0, 1]')
         parser.add_argument('--img_type', type=str, default='sRGB', help='Input image type: sRGB, raw')
         parser.add_argument('--resize', type=int, default=None, help='Resize longest side to this size, if 0, use original resolution')
+        parser.add_argument('--patch_size', type=int, default=320, help='For training, patch size of training sample')
         parser.add_argument('--linear_transform', action='store_true', default=False, help='Transform to pseudolinear') # get pseudolinear data
         parser.add_argument('--log_transform', action='store_true', default=False, help='Transform to pseudolog')
         parser.add_argument('--log_range', type=int, default=LOG_RANGE, help='Upper bound of values prior to log transform')
+        parser.add_argument('--color_balance_aug', action='store_true', default=False, help='Color balance data augmentation')
+        parser.add_argument('--intensity_aug', action='store_true', default=False, help='Intensity data augmentation')
         parser.add_argument('--target_adjust', action='store_true', default=False, help='Adjust target colors to match ground truth')
         parser.add_argument('--motion_transform', type=str, default='', help='Type of motion transform to apply to targets, must be pre-computed in dataset directory')
 
@@ -157,7 +164,6 @@ class TrainOptions(ProgramOptions):
         parser.add_argument('--vit_share', action='store_true', default=False, help='share vit module')
 
         # args for training
-        parser.add_argument('--train_ps', type=int, default=320, help='patch size of training sample')
         parser.add_argument('--resume', action='store_true', default=False)
         parser.add_argument('--train_dir', type=str, default=f'{PNG_DIR}/train', help='dir of train data')
         parser.add_argument('--val_dir', type=str, default=f'{PNG_DIR}/test', help='dir of validation data')
@@ -177,8 +183,11 @@ class TrainOptions(ProgramOptions):
             divisor=self.img_divisor, 
             img_type=self.img_type,
             resize=self.resize,
+            patch_size=self.patch_size,
             linear_transform=self.linear_transform, 
             log_transform=self.log_transform,
+            color_balance_aug=self.color_balance_aug,
+            intensity_aug=self.intensity_aug,
             target_adjust=self.target_adjust,
             log_range=self.log_range,
             motion_transform=self.motion_transform
@@ -188,8 +197,11 @@ class TrainOptions(ProgramOptions):
         self.img_divisor = self.load_opts.divisor
         self.img_type = self.load_opts.img_type
         self.resize = self.load_opts.resize
+        self.patch_size = self.load_opts.patch_size
         self.linear_transform = self.load_opts.linear_transform
         self.log_transform = self.load_opts.log_transform
+        self.color_balance_aug = self.load_opts.color_balance_aug
+        self.intensity_aug = self.load_opts.intensity_aug
         self.target_adjust = self.load_opts.target_adjust
         self.log_range = self.load_opts.log_range
         self.motion_transform = self.load_opts.motion_transform
@@ -241,7 +253,6 @@ class TestOptions(ProgramOptions):
         parser.add_argument('--batch_size', default=1, type=int, help='batch size for dataloader')
         parser.add_argument('--tile', type=int, default=None, help='Tile size (e.g 720). None means testing on the original resolution image')
         parser.add_argument('--tile_overlap', type=int, default=0, help='Overlapping of different tiles')
-        parser.add_argument('--train_ps', type=int, default=320, help='patch size of training sample')
 
         # args for UFormer
         parser.add_argument('--embed_dim', type=int, default=32, help='dim of embedding features')    
@@ -278,8 +289,11 @@ class TestOptions(ProgramOptions):
             divisor=self.img_divisor, 
             img_type=self.img_type,
             resize=self.resize,
+            patch_size=self.patch_size,
             linear_transform=self.linear_transform, 
             log_transform=self.log_transform,
+            color_balance_aug=self.color_balance_aug,
+            intensity_aug=self.intensity_aug,
             target_adjust=self.target_adjust,
             log_range=self.log_range,
             motion_transform=self.motion_transform
@@ -312,8 +326,11 @@ class TestOptions(ProgramOptions):
         self.img_divisor = self.load_opts.divisor
         self.img_type = self.load_opts.img_type
         self.resize = self.load_opts.resize
+        self.patch_size = self.load_opts.patch_size
         self.linear_transform = self.load_opts.linear_transform
         self.log_transform = self.load_opts.log_transform
+        self.color_balance_aug = self.load_opts.color_balance_aug
+        self.intensity_aug = self.load_opts.intensity_aug
         self.target_adjust = self.load_opts.target_adjust
         self.log_range = self.load_opts.log_range
         self.motion_transform = self.load_opts.motion_transform
@@ -323,8 +340,11 @@ class TestOptions(ProgramOptions):
                       divisor=None, 
                       img_type=None,
                       resize=None,
+                      patch_size=None,
                       linear_transform=None, 
                       log_transform=None, 
+                      color_balance_aug=None,
+                      intensity_aug=None,
                       target_adjust=None, 
                       log_range=None,
                       motion_transform=None,
@@ -333,9 +353,12 @@ class TestOptions(ProgramOptions):
             dataset=dataset if dataset is not None else self.dataset,
             divisor=divisor if divisor is not None else self.img_divisor, 
             img_type=img_type if img_type is not None else self.img_type,
-            resize = resize,
+            resize=resize,
+            patch_size=patch_size if patch_size is not None else self.patch_size,
             linear_transform=linear_transform if linear_transform is not None else self.linear_transform, 
             log_transform=log_transform if log_transform is not None else self.log_transform,
+            color_balance_aug=color_balance_aug if color_balance_aug is not None else self.color_balance_aug,
+            intensity_aug=intensity_aug if intensity_aug is not None else self.intensity_aug,
             target_adjust=target_adjust if target_adjust is not None else self.target_adjust,
             log_range=log_range if log_range is not None else self.log_range,
             motion_transform=motion_transform if motion_transform is not None else self.motion_transform

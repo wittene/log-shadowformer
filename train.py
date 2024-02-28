@@ -3,23 +3,15 @@ import sys
 import json
 import warnings
 
-import matplotlib.pyplot as plt
-
 import torch
-import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader
-from natsort import natsorted
-import glob
 import random
 import time
 import numpy as np
-from einops import rearrange, repeat
 import datetime
-from pdb import set_trace as stx
 from losses import CharbonnierLoss
 
-from tqdm import tqdm 
 from warmup_scheduler import GradualWarmupScheduler
 from torch.optim.lr_scheduler import StepLR
 from timm.utils import NativeScaler
@@ -40,10 +32,6 @@ print(vars(opt))
 
 output_opts = opt.output_opts
 load_opts = opt.load_opts
-img_opts_train = {
-    'patch_size': opt.train_ps,
-    'da': True
-}
 
 MAX_VAL = 1 if not load_opts.log_transform else np.log(load_opts.log_range)
 
@@ -186,7 +174,7 @@ criterion = CharbonnierLoss().cuda()
 
 ######### DataLoader ###########
 print('===> Loading datasets')
-train_dataset = get_training_data(opt.train_dir, load_opts=load_opts, img_opts=img_opts_train)
+train_dataset = get_training_data(opt.train_dir, load_opts=load_opts)
 train_loader = DataLoader(dataset=train_dataset, batch_size=opt.batch_size, shuffle=True, 
         num_workers=opt.train_workers, pin_memory=True, drop_last=False)
 

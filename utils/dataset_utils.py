@@ -97,18 +97,21 @@ class Color_Aug:
         aug_imgs = [self.stack([aug_r, aug_g, aug_b]) for (aug_r, aug_g, aug_b) in zip(aug_rs, aug_gs, aug_bs)]
         return aug_imgs
     
-    def aug(self, imgs, random_apply: bool = True):
+    def aug(self, imgs):
         '''
         Apply the same intensity and color balance augmentations to each image
             Intensity first, then color balance
-            If random_apply is set, then 50% chance of applying each augmentation
+            Randomly choose condition: no aug, only intensity, only color, both
         Returns list of augmented images, corresponding to input images
         '''
         # apply each transform randomly
-        apply = lambda: np.random.randint(2) if random_apply else 1
+        apply = np.random.randint(4)
         # do intensity, then color
-        aug_imgs = self.intensity_aug(imgs) if apply() else imgs
-        aug_imgs = self.color_aug(aug_imgs) if apply() else imgs
+        aug_imgs = imgs
+        if apply == 1 or apply == 3:
+            aug_imgs = self.intensity_aug(aug_imgs)
+        if apply == 2 or apply == 3:
+            aug_imgs = self.color_aug(aug_imgs)
         return aug_imgs
 
 ### adjust shadow/no-shadow images

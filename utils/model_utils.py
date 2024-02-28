@@ -123,7 +123,7 @@ def get_arch(opt):
         model_restoration = UNet(dim=opt.embed_dim)
     elif arch == 'ShadowFormer':
         model_restoration = ShadowFormer(
-            img_size = opt.train_ps,
+            img_size = opt.patch_size,
             embed_dim = opt.embed_dim,
             win_size = opt.win_size,
             token_projection = opt.token_projection,
