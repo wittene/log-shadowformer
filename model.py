@@ -6,7 +6,6 @@ import torch.nn.functional as F
 from einops import rearrange, repeat
 import math
 
-from utils import log_to_linear
 
 ###########################################################################
 # CONSTANTS
@@ -1046,12 +1045,9 @@ class ShadowFormer(nn.Module):
                  norm_layer=nn.LayerNorm, patch_norm=True,
                  use_checkpoint=False, token_projection='linear', token_mlp='leff', se_layer=True,
                 # H-Edit {
-                 downsample=Downsample, upsample=Upsample, use_log=False, log_range=65535, **kwargs):
+                 downsample=Downsample, upsample=Upsample, log_range=65535, **kwargs):
                 # } H-Edit
         super().__init__()
-
-        # Enable to not make any changes based on log images, including output space
-        use_log = False
 
         self.num_enc_layers = len(depths)//2
         self.num_dec_layers = len(depths)//2
@@ -1063,13 +1059,7 @@ class ShadowFormer(nn.Module):
         self.win_size =win_size
         self.reso = img_size
         self.pos_drop = nn.Dropout(p=drop_rate)
-        # H-Edit {
-        self.use_log = use_log
-        # } H-Edit
-        # E-Edit {
-        # Skip norm layers when using log
-        self.norm_layer = norm_layer if not self.use_log else None
-        # } E-Edit
+        self.norm_layer = norm_layer
         # E-Edit {
         self.log_range = log_range 
         # } E-Edit
@@ -1275,11 +1265,6 @@ class ShadowFormer(nn.Module):
         deconv2 = self.decoderlayer_2(deconv2, xm, mask=mask, img_size = self.img_size)
 
         # Output Projection
-        # H-Edit {
         residual = self.output_proj(deconv2, img_size = self.img_size)
         y = residual + x
-        if self.use_log:
-            # always return linear images
-            return log_to_linear(y, self.log_range), log_to_linear(residual, self.log_range)
         return y, residual # corrected image, residual added to the shadow image
-        # } H-Edit
