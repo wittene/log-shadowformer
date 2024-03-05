@@ -118,6 +118,23 @@ class ProgramOptions():
 
     # Static helpers
 
+    def __add_uformer_args__(parser: argparse.ArgumentParser):
+        parser.add_argument('--embed_dim', type=int, default=32, help='dim of emdedding features')
+        parser.add_argument('--win_size', type=int, default=10, help='window size of self-attention')
+        parser.add_argument('--token_projection', type=str, default='linear', help='linear/conv token projection')
+        parser.add_argument('--token_mlp', type=str, default='leff', help='ffn/leff token mlp')
+        parser.add_argument('--att_se', action='store_true', default=False, help='se after sa')
+
+    def __add_vit_args__(parser: argparse.ArgumentParser):
+        parser.add_argument('--vit_dim', type=int, default=320, help='vit hidden_dim')
+        parser.add_argument('--vit_depth', type=int, default=12, help='vit depth')
+        parser.add_argument('--vit_nheads', type=int, default=8, help='vit hidden_dim')
+        parser.add_argument('--vit_mlp_dim', type=int, default=512, help='vit mlp_dim')
+        parser.add_argument('--vit_patch_size', type=int, default=16, help='vit patch_size')
+        parser.add_argument('--global_skip', action='store_true', default=False, help='global skip connection')
+        parser.add_argument('--local_skip', action='store_true', default=False, help='local skip connection')
+        parser.add_argument('--vit_share', action='store_true', default=False, help='share vit module')
+
     def __add_load_args__(parser: argparse.ArgumentParser):
         parser.add_argument('--dataset', type=str, default='ISTD', help='dataset to use for eval: ISTD, RawSR')
         parser.add_argument('--img_divisor', type=float, default=PNG_DIVISOR, help='value to scale images to [0, 1]')
@@ -243,40 +260,29 @@ class TrainOptions(ProgramOptions):
 
         parser = argparse.ArgumentParser(description=description)
         
-        # global settings
-        parser.add_argument('--batch_size', type=int, default=4, help='batch size')
+        # args for training
+        parser.add_argument('--gpu', type=str, default='0', help='GPUs')
+
+        parser.add_argument('--resume', action='store_true', default=False)
         parser.add_argument('--nepoch', type=int, default=500, help='training epochs')
+
+        parser.add_argument('--train_dir', type=str, default=f'{PNG_DIR}/train', help='dir of train data')
+        parser.add_argument('--val_dir', type=str, default=f'{PNG_DIR}/test', help='dir of validation data')
+        parser.add_argument('--batch_size', type=int, default=4, help='batch size')
         parser.add_argument('--train_workers', type=int, default=1, help='train_dataloader workers')
         parser.add_argument('--eval_workers', type=int, default=1, help='eval_dataloader workers')
+
         parser.add_argument('--optimizer', type=str, default='adamw', help='optimizer for training')
         parser.add_argument('--lr_initial', type=float, default=0.0002, help='initial learning rate')  # previous default: 0.01
         parser.add_argument('--weight_decay', type=float, default=0.02, help='weight decay') # L2 regularization, previous default: 0.01
-        parser.add_argument('--gpu', type=str, default='0', help='GPUs')
-
-        # args for Uformer
-        parser.add_argument('--norm_layer', type=str, default='nn.LayerNorm', help='normalize layer in transformer')
-        parser.add_argument('--embed_dim', type=int, default=32, help='dim of emdedding features')
-        parser.add_argument('--win_size', type=int, default=10, help='window size of self-attention')
-        parser.add_argument('--token_projection', type=str, default='linear', help='linear/conv token projection')
-        parser.add_argument('--token_mlp', type=str, default='leff', help='ffn/leff token mlp')
-        parser.add_argument('--att_se', action='store_true', default=False, help='se after sa')
-
-        # args for vit
-        parser.add_argument('--vit_dim', type=int, default=320, help='vit hidden_dim')
-        parser.add_argument('--vit_depth', type=int, default=12, help='vit depth')
-        parser.add_argument('--vit_nheads', type=int, default=8, help='vit hidden_dim')
-        parser.add_argument('--vit_mlp_dim', type=int, default=512, help='vit mlp_dim')
-        parser.add_argument('--vit_patch_size', type=int, default=16, help='vit patch_size')
-        parser.add_argument('--global_skip', action='store_true', default=False, help='global skip connection')
-        parser.add_argument('--local_skip', action='store_true', default=False, help='local skip connection')
-        parser.add_argument('--vit_share', action='store_true', default=False, help='share vit module')
-
-        # args for training
-        parser.add_argument('--resume', action='store_true', default=False)
-        parser.add_argument('--train_dir', type=str, default=f'{PNG_DIR}/train', help='dir of train data')
-        parser.add_argument('--val_dir', type=str, default=f'{PNG_DIR}/test', help='dir of validation data')
         parser.add_argument('--warmup', action='store_true', default=True, help='warmup')
         parser.add_argument('--warmup_epochs', type=int, default=3, help='epochs for warmup')
+
+        # args for Uformer
+        ProgramOptions.__add_uformer_args__(parser)
+
+        # args for vit
+        ProgramOptions.__add_vit_args__(parser)
 
         # args for image transforms
         ProgramOptions.__add_load_args__(parser)
@@ -307,28 +313,20 @@ class TestOptions(ProgramOptions):
 
         parser = argparse.ArgumentParser(description=description)
 
-        # global settings
+        # args for testing
         parser.add_argument('--gpu', default='0', type=str, help='CUDA_VISIBLE_DEVICES')
+
         parser.add_argument('--input_dir', default=f'{PNG_DIR}/test', type=str, help='directory of validation images')
         parser.add_argument('--batch_size', default=1, type=int, help='batch size for dataloader')
+        
         parser.add_argument('--tile', type=int, default=None, help='Tile size (e.g 720). None means testing on the original resolution image')
         parser.add_argument('--tile_overlap', type=int, default=0, help='Overlapping of different tiles')
 
         # args for UFormer
-        parser.add_argument('--embed_dim', type=int, default=32, help='dim of embedding features')    
-        parser.add_argument('--win_size', type=int, default=10, help='window size of self-attention')
-        parser.add_argument('--token_projection', type=str, default='linear', help='linear/conv token projection')
-        parser.add_argument('--token_mlp', type=str,default='leff', help='ffn/leff token mlp')
+        ProgramOptions.__add_uformer_args__(parser)
         
         # args for vit
-        parser.add_argument('--vit_dim', type=int, default=320, help='vit hidden_dim')
-        parser.add_argument('--vit_depth', type=int, default=12, help='vit depth')
-        parser.add_argument('--vit_nheads', type=int, default=8, help='vit hidden_dim')
-        parser.add_argument('--vit_mlp_dim', type=int, default=512, help='vit mlp_dim')
-        parser.add_argument('--vit_patch_size', type=int, default=16, help='vit patch_size')
-        parser.add_argument('--global_skip', action='store_true', default=False, help='global skip connection')
-        parser.add_argument('--local_skip', action='store_true', default=False, help='local skip connection')
-        parser.add_argument('--vit_share', action='store_true', default=False, help='share vit module')
+        ProgramOptions.__add_vit_args__(parser)
 
         # args for image transforms
         ProgramOptions.__add_load_args__(parser)
