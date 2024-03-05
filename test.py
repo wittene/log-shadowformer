@@ -51,7 +51,7 @@ model_restoration = torch.nn.DataParallel(model_restoration)
 
 checkpoint = utils.load_checkpoint(output_opts.weights_latest, map_location='cuda')
 checkpoint.load_model(model_restoration)
-print("===>Testing using weights: ", opts.weights)
+print("===>Testing using weights: ", output_opts.weights_latest)
 
 model_restoration.cuda()
 model_restoration.eval()
