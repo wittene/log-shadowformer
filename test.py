@@ -49,9 +49,9 @@ test_loader = DataLoader(dataset=test_dataset, batch_size=1, shuffle=False, num_
 model_restoration = utils.get_arch(opts)
 model_restoration = torch.nn.DataParallel(model_restoration)
 
-checkpoint = utils.load_checkpoint(output_opts.weights_latest, map_location='cuda')
+checkpoint = utils.load_checkpoint(output_opts.weights_best, map_location='cuda')
 checkpoint.load_model(model_restoration)
-print("===>Testing using weights: ", output_opts.weights_latest)
+print("===>Testing using weights: ", output_opts.weights_best)
 
 model_restoration.cuda()
 model_restoration.eval()
