@@ -68,11 +68,16 @@ class DatasetTransforms():
         Apply color augmentation in sRGB space
         '''
         if intensity and color:
+            # apply transform 25/25/25/25
             [clean, noisy] = DatasetTransforms.COLOR_AUG.aug([clean, noisy])
         elif intensity:
-            [clean, noisy] = DatasetTransforms.COLOR_AUG.intensity_aug([clean, noisy])
+            # apply transform 50/50
+            if np.random.randint(2):
+                [clean, noisy] = DatasetTransforms.COLOR_AUG.intensity_aug([clean, noisy])
         elif color:
-            [clean, noisy] = DatasetTransforms.COLOR_AUG.color_aug([clean, noisy])
+            # apply transform 50/50
+            if np.random.randint(2):
+                [clean, noisy] = DatasetTransforms.COLOR_AUG.color_aug([clean, noisy])
         return clean, noisy
     
     def adjust_target(clean, noisy, mask):
