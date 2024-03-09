@@ -129,6 +129,7 @@ def get_arch(opt):
             token_projection = opt.token_projection,
             token_mlp = opt.token_mlp,
             log_range = opt.log_range,
+            split_residual= opt.split_residual,
             # DEFAULT PARAMS:
             # in_chans: int = 3,
             # depths: Any = [2, 2, 2, 2, 2, 2, 2, 2, 2],

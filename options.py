@@ -134,6 +134,7 @@ class ProgramOptions():
         parser.add_argument('--global_skip', action='store_true', default=False, help='global skip connection')
         parser.add_argument('--local_skip', action='store_true', default=False, help='local skip connection')
         parser.add_argument('--vit_share', action='store_true', default=False, help='share vit module')
+        parser.add_argument('--split_residual', action='store_true', default=False, help='if true, split body and surface reflection')
 
     def __add_load_args__(parser: argparse.ArgumentParser):
         parser.add_argument('--dataset', type=str, default='ISTD', help='dataset to use for eval: ISTD, RawSR')

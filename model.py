@@ -1044,9 +1044,10 @@ class ShadowFormer(nn.Module):
                  drop_rate=0., attn_drop_rate=0., drop_path_rate=0.1,
                  norm_layer=nn.LayerNorm, patch_norm=True,
                  use_checkpoint=False, token_projection='linear', token_mlp='leff', se_layer=True,
-                # H-Edit {
-                 downsample=Downsample, upsample=Upsample, log_range=65535, **kwargs):
-                # } H-Edit
+                 downsample=Downsample, upsample=Upsample,
+                 split_residual=False,
+                 log_range=65535, 
+                 **kwargs):
         super().__init__()
 
         self.num_enc_layers = len(depths)//2
@@ -1060,9 +1061,8 @@ class ShadowFormer(nn.Module):
         self.reso = img_size
         self.pos_drop = nn.Dropout(p=drop_rate)
         self.norm_layer = norm_layer
-        # E-Edit {
+        self.split_residual = split_residual
         self.log_range = log_range 
-        # } E-Edit
 
         # stochastic depth
         enc_dpr = [x.item() for x in torch.linspace(0, drop_path_rate, sum(depths[:self.num_enc_layers]))]
@@ -1072,8 +1072,9 @@ class ShadowFormer(nn.Module):
         # build layers
 
         # Input/Output
+        residual_channels = in_chans if not self.split_residual else 2*in_chans
         self.input_proj = InputProj(in_channel=4, out_channel=embed_dim, kernel_size=3, stride=1, act_layer=nn.LeakyReLU)
-        self.output_proj = OutputProj(in_channel=2*embed_dim, out_channel=in_chans, kernel_size=3, stride=1)
+        self.output_proj = OutputProj(in_channel=2*embed_dim, out_channel=residual_channels, kernel_size=3, stride=1)
         # self.CAB = CAB(embed_dim, kernel_size=3, reduction=4, bias=False, act=nn.PReLU())
 
         # Encoder
@@ -1266,5 +1267,11 @@ class ShadowFormer(nn.Module):
 
         # Output Projection
         residual = self.output_proj(deconv2, img_size = self.img_size)
-        y = residual + x
-        return y, residual # corrected image, residual added to the shadow image
+        if not self.split_residual:
+            y = residual + x
+            return y, residual # corrected image, residual added to the shadow image
+        else:
+            # TODO: check this
+            body_res, residue_res = torch.split(residual, self.output_proj.out_channel//2, dim=1)
+            y = body_res + x
+            return y, body_res, residue_res # corrected image, two residuals added to the shadow image
