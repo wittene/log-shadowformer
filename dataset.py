@@ -320,7 +320,7 @@ class DataLoaderVal(Dataset):
             noisy_filename=self.dataset_dir.noisy_filenames[tar_index],
             mask_filename=self.dataset_dir.mask_filenames[tar_index],
             load_opts=self.load_opts,
-            data_transforms=self.data_transforms
+            data_transforms=curr_data_transforms
         )
 
         clean = torch.from_numpy(np.float32(clean))
