@@ -177,7 +177,7 @@ class DatasetTransforms():
 class DatasetDirectory():
     '''Helper for parsing dataset directory based on dataset'''
 
-    VALID_DATASETS = {'ISTD', 'RawSR', 'RawSR-compressed'}
+    VALID_DATASETS = {'ISTD', 'ISTD-all_aug', 'ISTD-color_balance', 'ISTD-intensity', 'RawSR', 'RawSR-compressed'}
     VALID_MODES    = {'train', 'test'}
 
     def __init__(self, base_dir: str, dataset: str, mode: str) -> None:
@@ -192,7 +192,7 @@ class DatasetDirectory():
         self.mode = mode
         
         # Locate sub-directories
-        if dataset == 'ISTD':
+        if 'ISTD' in dataset:
             self.gt_dir = f'{self.mode}_C'
             self.input_dir = f'{self.mode}_A'
             self.mask_dir = f'{self.mode}_B'
