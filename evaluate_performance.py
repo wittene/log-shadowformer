@@ -39,7 +39,7 @@ def get_last_completed_epoch(d):
 def graph_losses(train_values, val_values, save_path="loss.png", title="MSE Loss for ShadowFormer"):
     x = [k for k, _ in train_values]
     y = [v for _, v in train_values]
-    xTicks = [t-1 for t in range(0, len(x)+1, 25)]
+    xTicks = [t-1 for t in range(0, 501, 25)]
     yTicks = list(range(0, 131, 10))
     plt.plot(x, y, label="train")
     xVal = [k for k, _ in val_values]

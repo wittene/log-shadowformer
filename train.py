@@ -208,6 +208,8 @@ for epoch in range(start_epoch, opt.nepoch + 1):
     epoch_loss = 0
     train_id = 1
     epoch_ssim_loss = 0
+
+    #### TRAINING LOOP ####
     for i, data in enumerate(train_loader, 0): 
         # zero_grad
         index += 1
@@ -231,8 +233,8 @@ for epoch in range(start_epoch, opt.nepoch + 1):
                 restored = restored + residue_res
                 if load_opts.log_transform:
                     restored = utils.linear_to_log(restored, log_range=load_opts.log_range)
+            # compute loss
             restored = torch.clamp(restored,0,MAX_VAL)
-            # compute loss in input space
             loss = criterion(restored, target)
             # if opt.split_residual:
             #     loss += br_weight*br_loss(body_res)
@@ -241,7 +243,7 @@ for epoch in range(start_epoch, opt.nepoch + 1):
         loss_scaler(loss, optimizer, parameters=model_restoration.parameters())
         epoch_loss +=loss.item()
 
-        #### Evaluation ####
+        #### EVAL LOOP (PSNR, SSIM, RMSE) ####
         if (index+1)%eval_now==0 and i>0:
 
             eval_shadow_rmse = 0
@@ -271,11 +273,10 @@ for epoch in range(start_epoch, opt.nepoch + 1):
                         restored = torch.clamp(restored,0,MAX_VAL)
                     # } E-Edit
                     # E-Edit {
-                    # model returns image in input space (log-space), convert output and target to linear for evaluation
+                    # model returns image in input space (log-space), convert output and target to sRGB for evaluation
                     if load_opts.log_transform:
                         restored = utils.log_to_linear(restored, log_range=load_opts.log_range)
                         target = utils.log_to_linear(target, log_range=load_opts.log_range)
-                        # mask = torch.multiply(mask, np.log(load_opts.log_range))
                     if load_opts.linear_transform:
                         # by here, max_val should always be 1
                         restored = utils.apply_srgb(restored, max_val=1)
@@ -300,6 +301,8 @@ for epoch in range(start_epoch, opt.nepoch + 1):
                         % (epoch, i, psnr_val_rgb,best_epoch,best_iter,best_psnr)+'\n')
                 model_restoration.train()
                 torch.cuda.empty_cache()
+    
+    #### VALIDATION LOOP ####
     eval_loss = 0
     if epoch > 1 and (epoch < 10 or epoch % 3 == 0 or epoch == opt.nepoch):
         save_residual = opt.save_residuals and (epoch < 10 or epoch % 10 == 0 or epoch == opt.nepoch)
