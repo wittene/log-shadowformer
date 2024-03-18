@@ -200,11 +200,28 @@ if opts.cal_metrics:
     rmse_val_s = np.array(rmse_val_s)
     rmse_val_ns = np.array(rmse_val_ns)
 
+    # lowest 25% of values
+    lo_25 = lambda arr: arr[arr <= np.percentile(arr, 25)]
+    # highest 25% of values
+    hi_25 = lambda arr: arr[arr >= np.percentile(arr, 75)]
+
     # mean
-    print('Eval Mean:')
+    print('Eval Mean (Overall):')
     print(f"PSNR: {np.mean(psnr_val_rgb)}, SSIM: {np.mean(ssim_val_rgb)}, RMSE: {np.mean(rmse_val_rgb)} ")
     print(f"SPSNR: {np.mean(psnr_val_s)}, SSSIM: {np.mean(ssim_val_s)}, SRMSE: {np.mean(rmse_val_s)} ")
     print(f"NSPSNR: {np.mean(psnr_val_ns)}, NSSSIM: {np.mean(ssim_val_ns)}, NSRMSE: {np.mean(rmse_val_ns)} ")
+    print()
+
+    print('Eval Mean (Best 25%):')
+    print(f"PSNR: {np.mean(hi_25(psnr_val_rgb))}, SSIM: {np.mean(hi_25(ssim_val_rgb))}, RMSE: {np.mean(lo_25(rmse_val_rgb))} ")
+    print(f"SPSNR: {np.mean(hi_25(psnr_val_s))}, SSSIM: {np.mean(hi_25(ssim_val_s))}, SRMSE: {np.mean(lo_25(rmse_val_s))} ")
+    print(f"NSPSNR: {np.mean(hi_25(psnr_val_ns))}, NSSSIM: {np.mean(hi_25(ssim_val_ns))}, NSRMSE: {np.mean(lo_25(rmse_val_ns))} ")
+    print()
+
+    print('Eval Mean (Worst 25%):')
+    print(f"PSNR: {np.mean(lo_25(psnr_val_rgb))}, SSIM: {np.mean(lo_25(ssim_val_rgb))}, RMSE: {np.mean(hi_25(rmse_val_rgb))} ")
+    print(f"SPSNR: {np.mean(lo_25(psnr_val_s))}, SSSIM: {np.mean(lo_25(ssim_val_s))}, SRMSE: {np.mean(hi_25(rmse_val_s))} ")
+    print(f"NSPSNR: {np.mean(lo_25(psnr_val_ns))}, NSSSIM: {np.mean(lo_25(ssim_val_ns))}, NSRMSE: {np.mean(hi_25(rmse_val_ns))} ")
     print()
 
     # trimean
@@ -221,7 +238,3 @@ if opts.cal_metrics:
     print(f"SPSNR: {np.median(psnr_val_s)}, SSSIM: {np.median(ssim_val_s)}, SRMSE: {np.median(rmse_val_s)} ")
     print(f"NSPSNR: {np.median(psnr_val_ns)}, NSSSIM: {np.median(ssim_val_ns)}, NSRMSE: {np.median(rmse_val_ns)} ")
     print()
-
-    
-    
-
