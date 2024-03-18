@@ -19,9 +19,9 @@ from utils.loader import get_validation_data
 from utils.pseudo_utils import *
 
 from skimage import img_as_float32, img_as_ubyte
-from skimage.metrics import peak_signal_noise_ratio as psnr_loss
 from skimage.metrics import structural_similarity as ssim_loss
 from sklearn.metrics import mean_squared_error as mse_loss
+psnr_loss = lambda rmse: 10 * np.log10(1 / rmse ** 2)
 
 opts = options.TestOptions(description='RGB denoising evaluation on validation set')
 load_opts = opts.load_opts
@@ -163,14 +163,15 @@ with torch.no_grad():
             ssim_val_ns.append(ssim_loss(gray_restored * (1 - bm.squeeze()), gray_gt * (1 - bm.squeeze()), channel_axis=None))
             ssim_val_s.append(ssim_loss(gray_restored * bm.squeeze(), gray_gt * bm.squeeze(), channel_axis=None))
 
-            psnr_val_rgb.append(psnr_loss(restored, rgb_gt))
-            psnr_val_ns.append(psnr_loss(restored * (1 - bm), rgb_gt * (1 - bm)))
-            psnr_val_s.append(psnr_loss(restored * bm, rgb_gt * bm))
-
             # calculate the RMSE in LAB space
             rmse_val_rgb.append(np.abs(cv2.cvtColor(restored, cv2.COLOR_RGB2LAB) - cv2.cvtColor(rgb_gt, cv2.COLOR_RGB2LAB)).mean() * 3)
             rmse_val_s.append(np.abs(cv2.cvtColor(restored * bm, cv2.COLOR_RGB2LAB) - cv2.cvtColor(rgb_gt * bm, cv2.COLOR_RGB2LAB)).sum() / bm.sum())
             rmse_val_ns.append(np.abs(cv2.cvtColor(restored * (1-bm), cv2.COLOR_RGB2LAB) - cv2.cvtColor(rgb_gt * (1-bm), cv2.COLOR_RGB2LAB)).sum() / (1-bm).sum())
+
+            # calculate PSNR in sRGB space
+            psnr_val_rgb.append(psnr_loss(rmse_val_rgb[-1]))
+            psnr_val_ns.append(psnr_loss(rmse_val_ns[-1]))
+            psnr_val_s.append(psnr_loss(rmse_val_s[-1]))
 
 
         if opts.save_images:
