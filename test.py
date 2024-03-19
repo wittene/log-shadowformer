@@ -21,7 +21,19 @@ from utils.pseudo_utils import *
 from skimage import img_as_float32, img_as_ubyte
 from skimage.metrics import structural_similarity as ssim_loss
 from sklearn.metrics import mean_squared_error as mse_loss
-psnr_loss = lambda rmse: 10 * np.log10(1 / rmse ** 2)
+def psnr_loss(pred, target, mask=None):
+    if mask is not None:
+        pred_masked = pred[mask]
+        target_masked = target[mask]
+        mse = np.mean((pred_masked - target_masked) ** 2)
+    else:
+        mse = np.mean((pred - target) ** 2)
+    if mse == 0:
+        return float('inf')
+    return 10 * np.log10(1 / mse)
+def trimean(arr):
+    return (np.quantile(arr, 0.25) + 2*np.quantile(arr, 0.5) + np.quantile(arr, 0.75)) / 4
+
 
 opts = options.TestOptions(description='RGB denoising evaluation on validation set')
 load_opts = opts.load_opts
@@ -51,8 +63,9 @@ model_restoration = torch.nn.DataParallel(model_restoration)
 
 checkpoint = utils.load_checkpoint(output_opts.weights_best, map_location='cuda')
 checkpoint.load_model(model_restoration)
-print("===>Testing using weights: ", output_opts.weights_best)
-print("===>Training epochs: ", checkpoint.epoch)
+print(f"Testing [{output_opts.run_label}] on dataset [{load_opts.dataset}]")
+print("===>Using weights: ", output_opts.weights_best)
+print("===>With training epochs: ", checkpoint.epoch)
 
 model_restoration.cuda()
 model_restoration.eval()
@@ -155,6 +168,12 @@ with torch.no_grad():
         if opts.cal_metrics:
             bm = torch.where(mask == 0, torch.zeros_like(mask), torch.ones_like(mask))  #binarize mask
             bm = np.expand_dims(bm.cpu().numpy().squeeze(), axis=2)
+            bm3 = np.concatenate([bm, bm, bm], axis=2).astype(bool)
+
+            # calculate PSNR in sRGB space
+            psnr_val_rgb.append(psnr_loss(restored, rgb_gt, mask=None))
+            psnr_val_ns.append(psnr_loss(restored, rgb_gt, mask=~bm3))
+            psnr_val_s.append(psnr_loss(restored, rgb_gt, mask=bm3))
 
             # calculate SSIM in gray space
             gray_restored = cv2.cvtColor(restored, cv2.COLOR_RGB2GRAY)
@@ -167,11 +186,6 @@ with torch.no_grad():
             rmse_val_rgb.append(np.abs(cv2.cvtColor(restored, cv2.COLOR_RGB2LAB) - cv2.cvtColor(rgb_gt, cv2.COLOR_RGB2LAB)).mean() * 3)
             rmse_val_s.append(np.abs(cv2.cvtColor(restored * bm, cv2.COLOR_RGB2LAB) - cv2.cvtColor(rgb_gt * bm, cv2.COLOR_RGB2LAB)).sum() / bm.sum())
             rmse_val_ns.append(np.abs(cv2.cvtColor(restored * (1-bm), cv2.COLOR_RGB2LAB) - cv2.cvtColor(rgb_gt * (1-bm), cv2.COLOR_RGB2LAB)).sum() / (1-bm).sum())
-
-            # calculate PSNR in sRGB space
-            psnr_val_rgb.append(psnr_loss(rmse_val_rgb[-1]))
-            psnr_val_ns.append(psnr_loss(rmse_val_ns[-1]))
-            psnr_val_s.append(psnr_loss(rmse_val_s[-1]))
 
 
         if opts.save_images:
@@ -225,7 +239,6 @@ if opts.cal_metrics:
     print()
 
     # trimean
-    trimean = lambda arr: (np.quantile(arr, 0.25) + 2*np.quantile(arr, 0.5) + np.quantile(arr, 0.75)) / 4
     print('Eval Trimean:')
     print(f"PSNR: {trimean(psnr_val_rgb)}, SSIM: {trimean(ssim_val_rgb)}, RMSE: {trimean(rmse_val_rgb)} ")
     print(f"SPSNR: {trimean(psnr_val_s)}, SSSIM: {trimean(ssim_val_s)}, SRMSE: {trimean(rmse_val_s)} ")
