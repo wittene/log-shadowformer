@@ -49,6 +49,8 @@ utils.mkdir(output_opts.results_dir)
 utils.mkdir(output_opts.residuals_dir)
 residuals_eval_dir = os.path.join(output_opts.residuals_dir, "eval_best", load_opts.dataset)
 utils.mkdir(residuals_eval_dir)
+residue_sub_dir = os.path.join(residuals_eval_dir, "residue")
+utils.mkdir(residue_sub_dir)
 output_opts.diffs_dir = os.path.join(output_opts.diffs_dir, load_opts.dataset)
 utils.mkdir(output_opts.diffs_dir)
 
@@ -100,7 +102,9 @@ with torch.no_grad():
         # If tile is not set, evaluate on the full resolution
         # Otherwise, test the image tile by tile
         if opts.tile is None:
-            restored, residual = model_restoration(rgb_noisy, mask)
+            restored, *residuals = model_restoration(rgb_noisy, mask)
+            res1 = residuals[0]
+            res2 = residuals[1] if len(residuals) == 2 else None
         else:
 
             # TODO: debug this in log space to fix overlap issues
@@ -118,15 +122,18 @@ with torch.no_grad():
             
             # Tensors used to compute final output (averaging the overlaps)
             out_patch_acc = torch.zeros(b, c, h, w).to(device=rgb_noisy.device, dtype=torch.float32)  # accumulates output patches
-            out_patch_cts = torch.zeros_like(out_patch_acc)                 # counts number of patches at each position
-            residual_patch_acc = torch.zeros_like(out_patch_acc)            # accumulates residual patches
+            out_patch_cts = torch.zeros_like(out_patch_acc)             # counts number of patches at each position
+            res1_patch_acc = torch.zeros_like(out_patch_acc)            # accumulates residual patches
+            res2_patch_acc = torch.zeros_like(out_patch_acc)            # accumulates residual patches
 
             # Get tile outputs
             for h_idx in h_idx_list:
                 for w_idx in w_idx_list:
                     in_patch = rgb_noisy[..., h_idx:h_idx + tile, w_idx:w_idx + tile]
                     mask_patch = mask[..., h_idx:h_idx + tile, w_idx:w_idx + tile]
-                    out_patch, residual_patch = model_restoration(in_patch, mask_patch)
+                    out_patch, *residual_patches = model_restoration(in_patch, mask_patch)
+                    res1_patch = residual_patches[0]
+                    res2_patch = residual_patches[1] if len(residual_patches) == 2 else None
                     out_patch_mask = torch.ones_like(out_patch)
                     # # if in log space, accumulate in linear to simplify averaging math
                     # if load_opts.log_transform:
@@ -134,11 +141,14 @@ with torch.no_grad():
                     #     residual_patch = log_to_linear(residual_patch, log_range=load_opts.log_range)
                     out_patch_acc[..., h_idx:(h_idx + tile), w_idx:(w_idx + tile)].add_(out_patch)
                     out_patch_cts[..., h_idx:(h_idx + tile), w_idx:(w_idx + tile)].add_(out_patch_mask)
-                    residual_patch_acc[..., h_idx:(h_idx + tile), w_idx:(w_idx + tile)].add_(residual_patch)
+                    res1_patch_acc[..., h_idx:(h_idx + tile), w_idx:(w_idx + tile)].add_(res1_patch)
+                    if res2_patch is not None:
+                        res2_patch_acc[..., h_idx:(h_idx + tile), w_idx:(w_idx + tile)].add_(res2_patch)
             
             # Create final output as an average
             restored = out_patch_acc.div_(out_patch_cts)
-            residual = residual_patch_acc.div_(out_patch_cts)
+            res1 = res1_patch_acc.div_(out_patch_cts)
+            res2 = res2_patch_acc.div_(out_patch_cts) if opts.split_residual else None
 
             # # Convert back to log space if needed
             # if load_opts.log_transform:
@@ -150,8 +160,11 @@ with torch.no_grad():
         # Convert output into numpy for evaluation and unpad
         restored = torch.clamp(restored, 0, MAX_VAL).cpu().numpy().squeeze().transpose((1, 2, 0))
         restored = restored[:height, :width, :]
-        residual = torch.clamp(residual, 0, MAX_VAL).cpu().numpy().squeeze().transpose((1, 2, 0))
-        residual = residual[:height, :width, :]
+        res1 = torch.clamp(res1, 0, MAX_VAL).cpu().numpy().squeeze().transpose((1, 2, 0))
+        res1 = res1[:height, :width, :]
+        if res2 is not None:
+            res2 = torch.clamp(res2, 0, MAX_VAL).cpu().numpy().squeeze().transpose((1, 2, 0))
+            res2 = res2[:height, :width, :]
         
         # E-Edit {
         if load_opts.log_transform:
@@ -192,10 +205,12 @@ with torch.no_grad():
             utils.save_img((restored*255.0).astype(np.ubyte), os.path.join(output_opts.results_dir, filenames[0]))
         
         if opts.save_residuals:
-            residual = np.clip(residual, 0, MAX_VAL)
-            # if load_opts.linear_transform:
-            #     residual = utils.apply_srgb(residual, max_val=MAX_VAL)
-            utils.save_img((residual*255.0).astype(np.ubyte), os.path.join(residuals_eval_dir, filenames[0]))
+            res1 = np.clip(res1, 0, MAX_VAL)
+            utils.save_img((res1*255.0).astype(np.ubyte), os.path.join(residuals_eval_dir, filenames[0]))
+        
+        if opts.save_residuals and res2 is not None:
+            res2 = np.clip(res2, 0, MAX_VAL)
+            utils.save_img((res2*255.0).astype(np.ubyte), os.path.join(residue_sub_dir, filenames[0]))
         
         if opts.save_diffs:
             diff = np.absolute(rgb_gt - restored)

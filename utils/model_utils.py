@@ -116,7 +116,14 @@ def load_checkpoint(checkpoint_path: str, map_location='cpu') -> Checkpoint:
 
 def get_arch(opt):
     from model import UNet,ShadowFormer
+    
     arch = opt.arch
+    
+    input_space = 'sRGB'
+    if opt.log_transform:
+        input_space = 'log'
+    elif opt.linear_transform or opt.img_type == 'raw':
+        input_space = 'linear'
 
     print('You choose '+arch+'...')
     if arch == 'UNet':
@@ -128,8 +135,9 @@ def get_arch(opt):
             win_size = opt.win_size,
             token_projection = opt.token_projection,
             token_mlp = opt.token_mlp,
-            log_range = opt.log_range,
             split_residual= opt.split_residual,
+            input_space= input_space,
+            log_range = opt.log_range,
             # DEFAULT PARAMS:
             # in_chans: int = 3,
             # depths: Any = [2, 2, 2, 2, 2, 2, 2, 2, 2],

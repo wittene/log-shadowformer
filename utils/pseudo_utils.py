@@ -84,14 +84,14 @@ def linear_to_log(linear_img, log_range=None):
     # scale before taking the log
     log_img = torch.mul(linear_img, log_range)
     # take the log
-    log_img[log_img != 0] = torch.log(log_img[log_img != 0])
+    log_img[log_img > 0] = torch.log(log_img[log_img > 0])
     # scale to [0,1]
-    log_img = torch.div(log_img, log_range)
+    log_img = torch.div(log_img, np.log(log_range))
   else:
     # scale before taking the log
     log_img = linear_img * log_range
     # take the log
-    log_img[log_img != 0] = np.log(log_img[log_img != 0])
+    log_img[log_img > 0] = np.log(log_img[log_img > 0])
     # scale to [0,1]
     log_img /= np.log(log_range)
   

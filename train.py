@@ -10,7 +10,7 @@ import random
 import time
 import numpy as np
 import datetime
-from losses import CharbonnierLoss
+from losses import CharbonnierLoss, TVLoss
 
 from warmup_scheduler import GradualWarmupScheduler
 from torch.optim.lr_scheduler import StepLR
@@ -171,12 +171,8 @@ else:
 
 ######### Loss ###########
 criterion = CharbonnierLoss().cuda()
-# total variation loss
-br_weight = 0.001
-br_loss   = lambda im: torch.sum(torch.abs(im[:, :, :, :-1] - im[:, :, :, 1:])) + torch.sum(torch.abs(im[:, :, :-1, :] - im[:, :, 1:, :]))
-# minimize magnitude
-rr_weight = 0.001
-rr_loss   = lambda im: torch.norm(im)
+res1_criterion = TVLoss(tv_loss_weight=0.1).cuda()
+res2_criterion = lambda x: 0.001 * torch.norm(x, 1)
 
 ######### DataLoader ###########
 print('===> Loading datasets')
@@ -224,21 +220,16 @@ for epoch in range(start_epoch, opt.nepoch + 1):
         with torch.cuda.amp.autocast():
             # forward pass -- returns images in input space
             restored, *residuals = model_restoration(input_, mask)
-            body_res = residuals[0]
-            residue_res = residuals[1] if len(residuals) == 2 else None
-            if residue_res is not None:
-                # add residue to restored in linear space, then convert back
-                if load_opts.log_transform:
-                    restored = utils.log_to_linear(restored, log_range=load_opts.log_range)
-                restored = restored + residue_res
-                if load_opts.log_transform:
-                    restored = utils.linear_to_log(restored, log_range=load_opts.log_range)
+            res1 = residuals[0]
+            res2 = residuals[1] if len(residuals) == 2 else None
             # compute loss
             restored = torch.clamp(restored,0,MAX_VAL)
             loss = criterion(restored, target)
-            # if opt.split_residual:
-            #     loss += br_weight*br_loss(body_res)
-            #     loss += rr_weight*rr_loss(residue_res)
+            if opt.split_residual:
+                mask3 = torch.cat((mask, mask, mask), dim=1)
+                masked_res1 = torch.where(mask3 == 0, torch.zeros_like(mask3), res1)
+                loss += res1_criterion(masked_res1)  # apply residual loss within shadow mask only
+                loss += res2_criterion(res2)
         # } E-Edit
         loss_scaler(loss, optimizer, parameters=model_restoration.parameters())
         epoch_loss +=loss.item()
@@ -261,15 +252,8 @@ for epoch in range(start_epoch, opt.nepoch + 1):
                     with torch.cuda.amp.autocast():
                         # forward pass
                         restored, *residuals = model_restoration(input_, mask)
-                        body_res = residuals[0]
-                        residue_res = residuals[1] if len(residuals) == 2 else None
-                        if residue_res is not None:
-                            # add residue to restored in linear space, then convert back
-                            if load_opts.log_transform:
-                                restored = utils.log_to_linear(restored, log_range=load_opts.log_range)
-                            restored = restored + residue_res
-                            if load_opts.log_transform:
-                                restored = utils.linear_to_log(restored, log_range=load_opts.log_range)
+                        res1 = residuals[0]
+                        res2 = residuals[1] if len(residuals) == 2 else None
                         restored = torch.clamp(restored,0,MAX_VAL)
                     # } E-Edit
                     # E-Edit {
@@ -325,26 +309,24 @@ for epoch in range(start_epoch, opt.nepoch + 1):
                 with torch.cuda.amp.autocast():
                     # forward pass
                     restored, *residuals = model_restoration(input_, mask)
-                    body_res = residuals[0]
-                    residue_res = residuals[1] if len(residuals) == 2 else None
-                    if residue_res is not None:
-                        # add residue to restored in linear space, then convert back
-                        if load_opts.log_transform:
-                            restored = utils.log_to_linear(restored, log_range=load_opts.log_range)
-                        restored = restored + residue_res
-                        if load_opts.log_transform:
-                            restored = utils.linear_to_log(restored, log_range=load_opts.log_range)
+                    res1 = residuals[0]
+                    res2 = residuals[1] if len(residuals) == 2 else None
                     restored = torch.clamp(restored,0,MAX_VAL)
                 # compute loss
                 eval_loss += criterion(restored, target)
-                # Output body reflection residual
+                if opt.split_residual:
+                    mask3 = torch.cat((mask, mask, mask), dim=1)
+                    masked_res1 = torch.where(mask3 == 0, torch.zeros_like(mask3), res1)
+                    eval_loss += res1_criterion(masked_res1)  # apply residual loss within shadow mask only
+                    eval_loss += res2_criterion(res2)
+                # Output primary residual
                 if save_residual:
-                    residual = body_res.cpu().detach().numpy()
+                    residual = res1.cpu().detach().numpy()
                     residual = np.clip(residual, 0, MAX_VAL)
                     utils.save_img((residual*255.0).astype(np.ubyte), os.path.join(residuals_sub_dir, filenames[0]))
                 # Output residue residual, if applicable
-                if save_residual and residue_res is not None:
-                    residual = residue_res.cpu().detach().numpy()
+                if save_residual and res2 is not None:
+                    residual = res2.cpu().detach().numpy()
                     residual = np.clip(residual, 0, MAX_VAL)
                     utils.save_img((residual*255.0).astype(np.ubyte), os.path.join(residue_sub_dir, filenames[0]))
                 # } E-Edit

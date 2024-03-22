@@ -46,7 +46,7 @@ def graph_losses(train_values, val_values, save_path="loss.png", title="MSE Loss
     yVal = [v for _, v in val_values]
     plt.scatter(xVal, yVal, color="red", label="val", s=7)
     plt.xticks(xTicks)
-    plt.yticks(yTicks)
+    # plt.yticks(yTicks)
     plt.legend()
     plt.xlabel("Epoch")
     plt.ylabel("Loss")

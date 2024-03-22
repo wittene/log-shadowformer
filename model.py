@@ -6,11 +6,44 @@ import torch.nn.functional as F
 from einops import rearrange, repeat
 import math
 
+from utils import srgb_to_rgb, apply_srgb, log_to_linear, linear_to_log
+
 
 ###########################################################################
 # CONSTANTS
 
 MAX_LOG_VAL = 11.0903
+
+
+
+###########################################################################
+# HELPERS - Apply residuals to construct shadow-free image
+
+def apply_residuals(x, residuals, input_space='srgb', log_range=65535):
+    # init
+    y = torch.clamp(x, 0, 1)
+    n_residuals = len(residuals)
+    # add residual1 in input space
+    res1 = residuals[0]
+    y = y + res1
+    y = torch.clamp(y, 0, 1)
+    # add residual2 in linear space, then convert back to input space
+    if n_residuals >= 2:
+        res2 = residuals[1]
+        if input_space.lower() == 'linear':
+            y = y + res2
+            y = torch.clamp(y, 0, 1)
+        if input_space.lower() == 'srgb':
+            y_linear = srgb_to_rgb(y)
+            y_linear = y_linear + res2
+            y_linear = torch.clamp(y_linear, 0, 1)
+            y = apply_srgb(y_linear)
+        else:
+            y_linear = log_to_linear(y, log_range=log_range)
+            y_linear = y_linear + res2
+            y_linear = torch.clamp(y_linear, 0, 1)
+            y = linear_to_log(y_linear, log_range=log_range)
+    return y
 
 
 
@@ -1046,7 +1079,7 @@ class ShadowFormer(nn.Module):
                  use_checkpoint=False, token_projection='linear', token_mlp='leff', se_layer=True,
                  downsample=Downsample, upsample=Upsample,
                  split_residual=False,
-                 log_range=65535, 
+                 input_space='srgb', log_range=65535,
                  **kwargs):
         super().__init__()
 
@@ -1062,6 +1095,7 @@ class ShadowFormer(nn.Module):
         self.pos_drop = nn.Dropout(p=drop_rate)
         self.norm_layer = norm_layer
         self.split_residual = split_residual
+        self.input_space = input_space
         self.log_range = log_range 
 
         # stochastic depth
@@ -1265,13 +1299,12 @@ class ShadowFormer(nn.Module):
         deconv2 = torch.cat([up2,conv0],-1)
         deconv2 = self.decoderlayer_2(deconv2, xm, mask=mask, img_size = self.img_size)
 
-        # Output Projection
+        # Output Projection + Apply Residual(s)
         residual = self.output_proj(deconv2, img_size = self.img_size)
         if not self.split_residual:
-            y = residual + x
-            return y, residual # corrected image, residual added to the shadow image
+            y = apply_residuals(x, residuals=(residual), input_space=self.input_space, log_range=self.log_range)
+            return y, residual
         else:
-            # TODO: check this
-            body_res, residue_res = torch.split(residual, self.output_proj.out_channel//2, dim=1)
-            y = body_res + x
-            return y, body_res, residue_res # corrected image, two residuals added to the shadow image
+            res1, res2 = torch.split(residual, self.output_proj.out_channel//2, dim=1)
+            y = apply_residuals(x, residuals=(res1, res2), input_space=self.input_space, log_range=self.log_range)
+            return y, res1, res2
