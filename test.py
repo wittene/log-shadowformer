@@ -172,7 +172,7 @@ with torch.no_grad():
             restored = log_to_linear(restored, log_range=load_opts.log_range)
             rgb_gt = log_to_linear(rgb_gt, log_range=load_opts.log_range)
             # mask = torch.multiply(mask, np.log(load_opts.log_range))
-        if load_opts.linear_transform:
+        if load_opts.linear_transform or load_opts.log_transform:
             # by here, max_val should always be 1
             restored = utils.apply_srgb(restored, max_val=1)
             rgb_gt = utils.apply_srgb(rgb_gt, max_val=1)
