@@ -29,11 +29,8 @@ MAX_VAL = 1 if not load_opts.log_transform else np.log(load_opts.log_range)
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
 os.environ["CUDA_VISIBLE_DEVICES"] = opts.gpu
 
-output_opts.results_dir = os.path.join(output_opts.results_dir, load_opts.dataset)
-utils.mkdir(output_opts.results_dir)
-utils.mkdir(output_opts.residuals_dir)
-residuals_eval_dir = os.path.join(output_opts.residuals_dir, "eval_best", load_opts.dataset)
-utils.mkdir(residuals_eval_dir)
+rank_dir = os.path.join(output_opts.log_dir, "eval_rankings", load_opts.dataset)
+utils.mkdir(rank_dir)
 
 test_dataset = get_validation_data(base_dir=opts.input_dir, load_opts=load_opts)
 test_loader = DataLoader(dataset=test_dataset, batch_size=1, shuffle=False, num_workers=4, drop_last=False)
@@ -43,8 +40,9 @@ model_restoration = torch.nn.DataParallel(model_restoration)
 
 checkpoint = utils.load_checkpoint(output_opts.weights_latest, map_location='cuda')
 checkpoint.load_model(model_restoration)
-print("===>Testing using weights: ", opts.weights_latest)
-
+print(f"Testing [{output_opts.run_label}] on dataset [{load_opts.dataset}]")
+print("===>Using weights: ", output_opts.weights_best)
+print("===>With training epochs: ", checkpoint.epoch)
 model_restoration.cuda()
 model_restoration.eval()
 
@@ -179,7 +177,7 @@ for metric in metrics.keys():
     ranked_filenames = {sorted_filenames[rank]: (rank + 1) for rank in range(len(sorted_filenames))}
     all_metrics = [(ranked_filenames[fn], fn, metrics[metric][fn], metrics_s[metric][fn], metrics_ns[metric][fn]) for fn in sorted_filenames]
     header = ['Rank', 'Filename', metric, f'S{metric}', f'NS{metric}']
-    csv_path = os.path.join(output_opts.log_dir, f'eval_sorted_{metric}.csv')
+    csv_path = os.path.join(rank_dir, f'eval_sorted_{metric}.csv')
     with open(csv_path, 'w', newline='') as csvfile:
         writer = csv.writer(csvfile)
         writer.writerow(header)
