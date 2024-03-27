@@ -257,7 +257,7 @@ for epoch in range(start_epoch, opt.nepoch + 1):
                         restored = torch.clamp(restored,0,MAX_VAL)
                     # } E-Edit
                     # E-Edit {
-                    # model returns image in input space (log-space), convert output and target to sRGB for evaluation
+                    # model returns image in input space, convert output and target to sRGB for evaluation
                     if load_opts.log_transform:
                         restored = utils.log_to_linear(restored, log_range=load_opts.log_range)
                         target = utils.log_to_linear(target, log_range=load_opts.log_range)
