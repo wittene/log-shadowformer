@@ -101,6 +101,9 @@ def load_imgs(clean_filename, noisy_filename, mask_filename, load_opts: LoadOpti
     noisy = load_img(noisy_filename)
     mask  = load_mask(mask_filename)
 
+    clean = np.clip(clean, 0, 1)
+    noisy = np.clip(noisy, 0, 1)
+
     if data_transforms is not None:
         clean, noisy, mask = data_transforms(clean, noisy, mask)
     
@@ -114,7 +117,7 @@ def save_img(img, filepath):
         img_copy = img_copy.squeeze()
     if img.shape[-1] > 3:    # try to rearrange dims for imwrite
         img_copy = img_copy.transpose((1, 2, 0))
-    if filepath.lower().endswith('.cr2'):
+    if filepath.lower().endswith('.cr2') or filepath.lower().endswith('.tiff'):
         filepath = ''.join(filepath.split('.')[:-1]) + '.png'
     cv2.imwrite(filepath, cv2.cvtColor(img_copy, cv2.COLOR_RGB2BGR))
 

@@ -177,7 +177,7 @@ class DatasetTransforms():
 class DatasetDirectory():
     '''Helper for parsing dataset directory based on dataset'''
 
-    VALID_DATASETS = {'ISTD', 'ISTD-all_aug', 'ISTD-color_balance', 'ISTD-intensity', 'RawSR', 'RawSR-compressed'}
+    VALID_DATASETS = {'ISTD', 'ISTD-all_aug', 'ISTD-color_balance', 'ISTD-intensity', 'RawSR', 'RawSR-raw', 'RawSR-compressed'}
     VALID_MODES    = {'train', 'test'}
 
     def __init__(self, base_dir: str, dataset: str, mode: str) -> None:
@@ -205,7 +205,7 @@ class DatasetDirectory():
         clean_files = sorted(os.listdir(os.path.join(base_dir, self.gt_dir)))
         noisy_files = sorted(os.listdir(os.path.join(base_dir, self.input_dir)))
         mask_files = sorted(os.listdir(os.path.join(base_dir, self.mask_dir)))
-        if 'RawSR' in dataset:
+        if 'RawSR' in dataset and len(noisy_files) > len(clean_files):
             clean_files = [f"{x.split('-')[0]}-1.{x.split('.')[-1]}" for x in noisy_files]  # 1-N relation between noisy and clean files
         
         self.clean_filenames = [os.path.join(base_dir, self.gt_dir, x) for x in clean_files]

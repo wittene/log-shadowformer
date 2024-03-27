@@ -15,7 +15,7 @@ PLINEAR_LOG_DIR = "pseudolinear"
 PLOG_DIR = "pseudolog"
 PSEUDO_NO_NORM = "pseudo_no_normf"
 
-VALID_IMG_TYPES = {'srgb', 'raw'}
+VALID_IMG_TYPES = {'srgb', 'linear', 'raw',}
 VALID_MOTION_TRANSFORMS = {'affine', ''}
 
 
@@ -45,7 +45,7 @@ class LoadOptions():
         self.patch_size = patch_size
         # Flag for linear transform
         self.linear_transform = linear_transform
-        if self.img_type == 'raw':
+        if self.img_type in {'raw', 'linear'}:
             self.linear_transform = False  # already linear
         # Flag for log transform
         self.log_transform = log_transform

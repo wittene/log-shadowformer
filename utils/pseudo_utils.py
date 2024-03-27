@@ -36,8 +36,9 @@ def apply_srgb(linear_img, max_val: int = 1):
 
   linear_img /= max_val
   max_func = torch.max if isinstance(linear_img, torch.Tensor) else np.max
-  if max_func(linear_img) > 1 or max_func(linear_img) < 0:
-      raise Exception("linear_img must be scaled to [0, 1]. Use max_val with the appropriate max_val to scale the image.")
+  min_func = torch.min if isinstance(linear_img, torch.Tensor) else np.min
+  if max_func(linear_img) > 1 or min_func(linear_img) < 0:
+      raise Exception(f"linear_img must be scaled to [0, 1]. Current range: [{min_func(linear_img)}, {max_func(linear_img)}]. Use max_val with the appropriate max_val to scale the image.")
   low_mask = linear_img <= 0.0031308
   high_mask = linear_img > 0.0031308
   linear_img[low_mask] *= 12.92
