@@ -25,7 +25,7 @@ def is_saturated(img: np.array):
     rs = img[:, :, 0]
     gs = img[:, :, 1]
     bs = img[:, :, 2]
-    sat_mask = (rs == 0) | (rs == 1) | (gs == 0) | (gs == 1) | (bs == 0) | (bs == 1)
+    sat_mask = (rs <= 0) | (rs >= 1) | (gs <= 0) | (gs >= 1) | (bs <= 0) | (bs >= 1)
     sat_pct = np.count_nonzero(sat_mask) / sat_mask.size
     return sat_mask, sat_pct
 
@@ -44,6 +44,10 @@ if __name__ == '__main__':
     parser.add_argument('--base_dir', type=str, help='dir of dataset')
     ProgramOptions.__add_load_args__(parser)
     parser.parse_args(namespace=opts)
+
+    # Output
+    out_dir = os.path.join("results", "inspect_saturation")
+    os.makedirs(out_dir, exist_ok=True)
 
     # Set up dataset(s)
     datasets = dict()
@@ -78,7 +82,7 @@ if __name__ == '__main__':
             ranked_filenames = {sorted_filenames[rank]: (rank + 1) for rank in range(len(sorted_filenames))}
             all_metrics = [(ranked_filenames[fn], fn, output_vals[fn]) for fn in sorted_filenames]
             header = ['Rank', 'Filename', 'SaturationPercentage']
-            csv_path = os.path.join("results", "inspect_saturation", f'{dataset}-{output}-saturation.csv')
+            csv_path = os.path.join(out_dir, f'{dataset}-{output}-saturation.csv')
             with open(csv_path, 'w', newline='') as csvfile:
                 writer = csv.writer(csvfile)
                 writer.writerow(header)
