@@ -1,1 +1,1 @@
-# Auxiliary functions
+# Auxiliary scripts
