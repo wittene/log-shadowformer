@@ -177,7 +177,7 @@ class DatasetTransforms():
 class DatasetDirectory():
     '''Helper for parsing dataset directory based on dataset'''
 
-    VALID_DATASETS = {'ISTD', 'ISTD-all_aug', 'ISTD-color_balance', 'ISTD-intensity', 'RawSR', 'RawSR-raw', 'RawSR-compressed'}
+    VALID_DATASETS = {'ISTD', 'ISTD-all_aug', 'ISTD-color_balance', 'ISTD-intensity', 'ISTD-RawSR', 'RawSR', 'RawSR-raw', 'RawSR-compressed'}
     VALID_MODES    = {'train', 'test'}
 
     def __init__(self, base_dir: str, dataset: str, mode: str) -> None:
