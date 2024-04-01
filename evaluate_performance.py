@@ -57,10 +57,11 @@ if __name__=="__main__":
 
     parser = argparse.ArgumentParser(description='Plot training loss')
     parser.add_argument('--run_label', type=str, help='Label of training run to evaluate')
+    parser.add_argument('--env',       type=str, default='_ISTD', help='Label of training run to evaluate')
     parser.add_argument('--title',     type=str, default='Training Loss for ShadowFormer', help='Title for performance plot')
     opt = parser.parse_args()
     
-    save_path = f"/work/SuperResolutionData/ShadowRemovalResults/ShadowFormer2/{opt.run_label}/ShadowFormer_ISTD/"
+    save_path = f"/work/SuperResolutionData/ShadowRemovalResults/ShadowFormer2/{opt.run_label}/ShadowFormer{opt.env}/"
     log_path = save_path + f"{opt.run_label}.json"
     chart_save_path = save_path + f"train_curves-{opt.run_label}.png"
     
