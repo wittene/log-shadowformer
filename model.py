@@ -1302,7 +1302,8 @@ class ShadowFormer(nn.Module):
         # Output Projection + Apply Residual(s)
         residual = self.output_proj(deconv2, img_size = self.img_size)
         if not self.split_residual:
-            y = apply_residuals(x, residuals=(residual), input_space=self.input_space, log_range=self.log_range)
+            y = x + residual
+            # y = apply_residuals(x, residuals=(residual), input_space=self.input_space, log_range=self.log_range)
             return y, residual
         else:
             res1, res2 = torch.split(residual, self.output_proj.out_channel//2, dim=1)
