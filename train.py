@@ -119,15 +119,10 @@ model_restoration = torch.nn.DataParallel(model_restoration)
 
 
 ######### Optimizer ###########
-# eps = .1
-# if opt.optimizer.lower() == 'adam':
-#     optimizer = optim.Adam(model_restoration.parameters(), lr=opt.lr_initial, betas=(0.9, 0.999),eps=eps, weight_decay=opt.weight_decay)
-# elif opt.optimizer.lower() == 'adamw':
-#         optimizer = optim.AdamW(model_restoration.parameters(), lr=opt.lr_initial, betas=(0.9, 0.999),eps=eps, weight_decay=opt.weight_decay)
 if opt.optimizer.lower() == 'adam':
-    optimizer = optim.Adam(model_restoration.parameters(), lr=opt.lr_initial, betas=(0.9, 0.999),eps=1e-8, weight_decay=opt.weight_decay)
+    optimizer = optim.Adam(model_restoration.parameters(), lr=opt.lr_initial, betas=(0.9, 0.999),eps=opt.eps, weight_decay=opt.weight_decay)
 elif opt.optimizer.lower() == 'adamw':
-    optimizer = optim.AdamW(model_restoration.parameters(), lr=opt.lr_initial, betas=(0.9, 0.999),eps=1e-8, weight_decay=opt.weight_decay)
+    optimizer = optim.AdamW(model_restoration.parameters(), lr=opt.lr_initial, betas=(0.9, 0.999),eps=opt.eps, weight_decay=opt.weight_decay)
 else:
     raise Exception("Error optimizer...")
 

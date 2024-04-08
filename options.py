@@ -276,7 +276,9 @@ class TrainOptions(ProgramOptions):
         parser.add_argument('--optimizer', type=str, default='adamw', help='optimizer for training')
         parser.add_argument('--lr_initial', type=float, default=0.0002, help='initial learning rate')  # previous default: 0.01
         parser.add_argument('--weight_decay', type=float, default=0.02, help='weight decay') # L2 regularization, previous default: 0.01
+        parser.add_argument('--eps', type=float, default=1e-8, help='eps')
         parser.add_argument('--warmup', action='store_true', default=True, help='warmup')
+        parser.add_argument('--no-warmup', dest='warmup', action='store_false')
         parser.add_argument('--warmup_epochs', type=int, default=3, help='epochs for warmup')
 
         # args for Uformer
