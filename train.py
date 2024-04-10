@@ -142,13 +142,10 @@ if checkpoint:
 #     scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, opt.nepoch-start_epoch+1, eta_min=1e-6)
 
 # ######### Scheduler ###########
-if checkpoint:
-    print("Using cosine strategy!")
-    scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, opt.nepoch-start_epoch+1, eta_min=1e-6)
-elif opt.warmup:
+if opt.warmup:
     print("Using warmup and cosine strategy!")
     warmup_epochs = opt.warmup_epochs
-    scheduler_cosine = optim.lr_scheduler.CosineAnnealingLR(optimizer, opt.nepoch-warmup_epochs, eta_min=1e-6)
+    scheduler_cosine = optim.lr_scheduler.CosineAnnealingLR(optimizer, opt.nepoch-warmup_epochs, eta_min=opt.lr_min)
     scheduler = GradualWarmupScheduler(optimizer, multiplier=1, total_epoch=warmup_epochs, after_scheduler=scheduler_cosine)
     if checkpoint:
         checkpoint.load_scheduler(scheduler)
