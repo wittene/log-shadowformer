@@ -1,5 +1,6 @@
 import os
 import random
+import re
 
 import matplotlib.pyplot as plt
 
@@ -177,12 +178,12 @@ class DatasetTransforms():
 class DatasetDirectory():
     '''Helper for parsing dataset directory based on dataset'''
 
-    VALID_DATASETS = {'ISTD', 'ISTD-unsaturated', 'ISTD-all_aug', 'ISTD-color_balance', 'ISTD-intensity', 'ISTD-RawSR', 'RawSR', 'RawSR-raw', 'RawSR-compressed'}
+    VALID_DATASETS = {r'ISTD(?:-.+)?', r'RawSR(?:-.+)?'}
     VALID_MODES    = {'train', 'test'}
 
     def __init__(self, base_dir: str, dataset: str, mode: str) -> None:
-        if dataset not in self.VALID_DATASETS:
-            raise Exception(f'Invalid dataset: {dataset}. Dataset must be one of: {self.VALID_DATASETS}')
+        if not any(re.fullmatch(pattern, dataset) for pattern in self.VALID_DATASETS):
+            raise Exception(f'Invalid dataset: {dataset}. Dataset must match one of: {self.VALID_DATASETS}')
         if mode not in self.VALID_MODES:
             raise Exception(f'Invalid mode: {mode}. Mode must be one of: {self.VALID_MODES}')
         
