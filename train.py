@@ -1,5 +1,6 @@
 import os
 import sys
+import math
 import json
 import warnings
 
@@ -144,9 +145,11 @@ if opt.warmup:
     optimizer.step()
     scheduler.step()
 else:
-    step = 50
-    print("Using StepLR,step={}!".format(step))
-    scheduler = StepLR(optimizer, step_size=step, gamma=0.5)
+    step = 40
+    total_steps = math.ceil(opt.nepoch/step) - 1
+    gamma = (opt.lr_min/opt.lr_initial) ** (1./total_steps)
+    print(f"Using StepLR: step={step}, gamma={gamma}!")
+    scheduler = StepLR(optimizer, step_size=step, gamma=gamma)
     if checkpoint:
         checkpoint.load_scheduler(scheduler)
     optimizer.step()
